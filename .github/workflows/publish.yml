@@ -38,3 +38,54 @@ jobs:
           push: true
           tags: ghcr.io/${{ github.repository }}:sha-${{ github.event.workflow_run.head_sha }}
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+  deploy:
+    name: Deploy to Raspberry Pi
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    concurrency:
+      group: brewery-production
+      cancel-in-progress: false
+    steps:
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ secrets.TS_AUDIENCE }}
+          tags: tag:ci
+          ping: 100.117.8.59
+
+      - name: Set up SSH and verify Raspberry Pi host fingerprint
+        env:
+          DEPLOY_KEY: ${{ secrets.BREW_DEPLOY_SSH_KEY }}
+          EXPECTED_FINGERPRINT: "SHA256:KaNTd44j9vEq+NsdWQKMu76UmEOw90PMZ6q03KntKoU"
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/beer-deploy
+          chmod 600 ~/.ssh/beer-deploy
+          ssh-keyscan -T 15 -t ed25519 100.117.8.59 > ~/.ssh/known_hosts
+          test -s ~/.ssh/known_hosts
+          actual=$(ssh-keygen -lf ~/.ssh/known_hosts -E sha256 | awk '{print $2}')
+          test "$actual" = "$EXPECTED_FINGERPRINT" || {
+            echo "Unexpected Raspberry Pi SSH host fingerprint"; exit 1;
+          }
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deploy validated Git commit to Raspberry Pi
+        run: |
+          ssh -i ~/.ssh/beer-deploy \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o BatchMode=yes \
+            -o ConnectTimeout=15 \
+            brewdeploy@100.117.8.59 \
+            "sudo -n /usr/local/sbin/brewery-deploy ${{ github.event.workflow_run.head_sha }}"
+
+      - name: Remove temporary SSH credential
+        if: always()
+        run: rm -f ~/.ssh/beer-deploy ~/.ssh/known_hosts
