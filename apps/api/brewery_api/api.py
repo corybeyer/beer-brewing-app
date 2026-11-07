@@ -4,9 +4,11 @@ from contextlib import asynccontextmanager
 from typing import Literal
 
 from fastapi import FastAPI, Response
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from brewery_config import database_url
+from brewery_config import database_url, web_assets_directory
 from brewery_database.connection import create_database_engine, database_is_ready
 
 
@@ -51,5 +53,15 @@ def create_app() -> FastAPI:
         ready = database_is_ready(application.state.database)
         response.status_code = 200 if ready else 503
         return ReadinessResponse(status="ready" if ready else "unavailable")
+
+    if (assets := web_assets_directory()) is not None:
+        @application.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
+        @application.api_route("/index.html", methods=["GET", "HEAD"], include_in_schema=False)
+        def index() -> FileResponse:
+            return FileResponse(assets / "index.html", headers={
+                "Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff",
+            })
+
+        application.mount("/assets", StaticFiles(directory=assets / "assets"), name="web-assets")
 
     return application

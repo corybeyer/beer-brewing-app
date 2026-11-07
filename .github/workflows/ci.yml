@@ -124,6 +124,34 @@ jobs:
       - name: Development stack and production smoke regression
         run: python3 scripts/development/check_containers.py
 
+  candidate-runtime:
+    name: Candidate UI and API runtime
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install browser test dependencies
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Candidate startup, outage, recovery, and live browser checks
+        run: python3 scripts/development/check_containers.py --candidate
+      - name: Save serving screenshots and failure traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: candidate-serving-results
+          path: tests/e2e/test-results/
+
   docker-build:
     runs-on: ubuntu-latest
     steps:
@@ -144,5 +172,12 @@ jobs:
         with:
           context: .
           file: infrastructure/docker/api.Dockerfile
+          platforms: linux/arm64
+          push: false
+      - name: Build UI and API candidate for Raspberry Pi ARM64
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infrastructure/docker/candidate.Dockerfile
           platforms: linux/arm64
           push: false

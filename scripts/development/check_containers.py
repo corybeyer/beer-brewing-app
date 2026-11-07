@@ -5,6 +5,7 @@ saved credentials, production configuration, or a published database port.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 from pathlib import Path
@@ -46,12 +47,13 @@ def require(condition, message):
         raise RuntimeError(message)
 
 
-def main():
+def main(candidate=False):
     # Fail before creating resources if Docker is unavailable.
     run('docker', 'info', '--format', '{{.Architecture}}')
     project = 'brewery-check-' + uuid.uuid4().hex[:12]
     smoke = project + '-smoke'
     smoke_image = project + ':smoke'
+    backend_port = '8080' if candidate else '8081'
     with tempfile.TemporaryDirectory(prefix='brewery-container-check-') as directory:
         private = Path(directory)
         for name in ('admin-password', 'migrator-password', 'app-password'):
@@ -68,8 +70,10 @@ def main():
         config['networks']['default']['name'] = project + '-default'
         # Docker assigns a free loopback port, avoiding a developer's running API.
         config['services']['backend']['ports'] = [
-            {'target': 8081, 'published': '0', 'host_ip': '127.0.0.1', 'protocol': 'tcp'}
+            {'target': int(backend_port), 'published': '0', 'host_ip': '127.0.0.1', 'protocol': 'tcp'}
         ]
+        if candidate:
+            config['services']['backend']['build']['dockerfile'] = 'infrastructure/docker/candidate.Dockerfile'
         config_path = private / 'compose.json'
         config_path.write_text(json.dumps(config))
         compose = ['docker', 'compose', '-p', project, '-f', str(config_path)]
@@ -78,7 +82,15 @@ def main():
             return run(*compose, *arguments, env=environment)
 
         def backend_url():
-            return 'http://' + dc('port', 'backend', '8081')
+            return 'http://' + dc('port', 'backend', backend_port)
+
+        def browser_check(phase, readiness):
+            if candidate:
+                subprocess.run(['npm', 'exec', '--', 'playwright', 'test', '--config',
+                                'apps/web/playwright.serving.config.ts'], cwd=ROOT,
+                               env=dict(environment, BREWERY_SERVING_BASE_URL=backend_url(),
+                                        BREWERY_SERVING_PHASE=phase, BREWERY_SERVING_READINESS=readiness),
+                               check=True, timeout=180)
 
         def inspect_backend():
             return json.loads(run('docker', 'inspect', dc('ps', '-q', 'backend')))[0]
@@ -106,13 +118,16 @@ def main():
                     'Database port must remain private')
             identity = database_identity()
             require(bool(identity), 'Database identity must be available')
+            browser_check('startup', 'ready')
 
             print('RUN: database outage preserves liveness and fails readiness', flush=True)
             dc('stop', 'database')
             wait_json(url + '/health', 200, {'status': 'ok', 'service': 'beer-brewing-app'})
             wait_json(url + '/api/v1/readiness', 503, {'status': 'unavailable'})
+            browser_check('outage', 'unavailable')
             dc('start', 'database')
             wait_json(url + '/api/v1/readiness', 200, {'status': 'ready'})
+            browser_check('recovery', 'ready')
 
             print('RUN: recreate containers and retain the initialized database', flush=True)
             dc('down')
@@ -145,4 +160,6 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--candidate', action='store_true', help='Test the built UI/API candidate on port 8080 with live browser checks')
+    main(candidate=parser.parse_args().candidate)

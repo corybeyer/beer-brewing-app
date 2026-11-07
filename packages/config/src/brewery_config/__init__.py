@@ -7,6 +7,18 @@ from sqlalchemy.engine import URL, make_url
 from sqlalchemy.exc import ArgumentError
 
 
+def web_assets_directory() -> Path | None:
+    """Opt into serving a complete frontend build; never fall back to source."""
+    value = os.environ.get("WEB_ASSETS_DIRECTORY")
+    if value is None:
+        return None
+    directory = Path(value)
+    if (not value or not directory.is_absolute() or not (directory / "index.html").is_file()
+            or not (directory / "assets").is_dir()):
+        raise ValueError("WEB_ASSETS_DIRECTORY must name a complete absolute frontend build directory")
+    return directory
+
+
 def read_password_file(path: str) -> str:
     try:
         password = Path(path).read_text(encoding="utf-8").rstrip("\r\n")
