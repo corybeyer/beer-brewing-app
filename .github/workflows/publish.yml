@@ -56,6 +56,7 @@ jobs:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           audience: ${{ secrets.TS_AUDIENCE }}
           tags: tag:ci
+          ping: 100.117.8.59
 
       - name: Set up SSH and verify Raspberry Pi host fingerprint
         env:
