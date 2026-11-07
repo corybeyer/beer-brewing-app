@@ -1,11 +1,13 @@
 """Deployment failure paths must retain data and restore application configuration."""
+import argparse
 import json
 import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
+from infrastructure.deployment.production import install
 from infrastructure.deployment.production.install import install_files, refuse_unclaimed_volume
 from infrastructure.deployment.production.rollout import Deployment, REPOSITORY
 
@@ -123,6 +125,28 @@ class ProductionRolloutTests(unittest.TestCase):
 
 
 class ProductionInstallerTests(unittest.TestCase):
+    def test_privileged_preflight_uses_root_docker_configuration(self):
+        with TemporaryDirectory() as directory:
+            deployment = Mock()
+            deployment.root = Path(directory) / 'not-installed'
+            deployment.command.return_value = b''
+            current = {'name': 'beer-brewing-app', 'services': {'brewery': {
+                'image': REPOSITORY + '@sha256:' + 'b' * 64,
+                'ports': [{'target': 8080, 'published': '8080', 'protocol': 'tcp'}],
+            }}}
+            with (
+                patch.object(install.argparse.ArgumentParser, 'parse_args', return_value=argparse.Namespace(commit='a' * 40)),
+                patch.object(install.os, 'geteuid', return_value=0),
+                patch.object(install.os, 'umask'),
+                patch.object(install.subprocess, 'check_output', return_value=json.dumps(current).encode()) as inspect,
+                patch.object(install, 'Deployment', return_value=deployment),
+                patch.object(install, 'private_directory'),
+                patch.object(install, 'install_files', side_effect=RuntimeError('stop before installing')),
+            ):
+                with self.assertRaisesRegex(RuntimeError, 'stop before installing'):
+                    install.main()
+            self.assertEqual(inspect.call_args.kwargs['env'], {'PATH': '/usr/bin:/bin', 'HOME': '/root'})
+
     def test_first_install_refuses_an_unclaimed_existing_production_volume(self):
         with TemporaryDirectory() as directory:
             root = Path(directory) / 'not-installed'

@@ -103,7 +103,7 @@ def main():
     # Inspect current configuration locally; never print its contents or secrets.
     current = json.loads(subprocess.check_output(['/usr/bin/docker', 'compose',
                          '--env-file', str(host / '.env'), '-f', str(host / 'compose.yaml'),
-                         'config', '--format', 'json'], env={'PATH': '/usr/bin:/bin'}, timeout=30))
+                         'config', '--format', 'json'], env={'PATH': '/usr/bin:/bin', 'HOME': '/root'}, timeout=30))
     brewery = current.get('services', {}).get('brewery', {})
     if (set(current.get('services', {})) != {'brewery'} or brewery.get('volumes')
             or brewery.get('environment') or brewery.get('container_name')
