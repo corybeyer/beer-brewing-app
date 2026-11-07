@@ -1,0 +1,75 @@
+# Installed only by the explicitly invoked production installer.
+name: ${BREWERY_PROJECT_NAME:-beer-brewing-app}
+
+x-application: &application
+  image: ${BREWERY_IMAGE:?A validated application image digest is required}
+  environment:
+    DATABASE_URL: postgresql://brewery_app@database:5432/brewery
+    DATABASE_PASSWORD_FILE: /run/secrets/app-password
+  secrets: [app-password]
+  init: true
+  depends_on:
+    database:
+      condition: service_healthy
+
+x-operator: &operator
+  image: ${BREWERY_OPERATOR_IMAGE:?A validated operator image digest is required}
+  profiles: [operations]
+  healthcheck:
+    disable: true
+
+services:
+  database:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: brewery_admin
+      POSTGRES_DB: brewery
+      POSTGRES_PASSWORD_FILE: /run/secrets/admin-password
+    secrets: [admin-password]
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U brewery_admin -d brewery]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  provision:
+    <<: *operator
+    command: [python, -m, infrastructure.deployment.database.manage, provision]
+    environment:
+      DATABASE_URL: postgresql://brewery_admin@database:5432/brewery
+      DATABASE_PASSWORD_FILE: /run/secrets/admin-password
+      MIGRATOR_PASSWORD_FILE: /run/secrets/migrator-password
+      APPLICATION_PASSWORD_FILE: /run/secrets/app-password
+    secrets: [admin-password, migrator-password, app-password]
+
+  migrate:
+    <<: *operator
+    command: [python, -m, infrastructure.deployment.database.manage, migrate]
+    environment:
+      DATABASE_URL: postgresql://brewery_migrator@database:5432/brewery
+      DATABASE_PASSWORD_FILE: /run/secrets/migrator-password
+    secrets: [migrator-password]
+
+  candidate:
+    <<: *application
+    profiles: [operations]
+    ports: ["127.0.0.1::8080"]
+
+  brewery:
+    <<: *application
+    restart: unless-stopped
+    ports: ["${BREWERY_BIND_ADDRESS:-0.0.0.0}:${BREWERY_HTTP_PORT:-8080}:8080"]
+
+secrets:
+  admin-password:
+    file: ${BREWERY_SECRETS_DIR:?Host secret directory is required}/admin-password
+  migrator-password:
+    file: ${BREWERY_SECRETS_DIR:?Host secret directory is required}/migrator-password
+  app-password:
+    file: ${BREWERY_SECRETS_DIR:?Host secret directory is required}/app-password
+
+volumes:
+  postgres-data:
+    name: ${BREWERY_DATA_VOLUME:-brewery-production-postgres}

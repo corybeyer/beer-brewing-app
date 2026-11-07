@@ -152,6 +152,19 @@ jobs:
           name: candidate-serving-results
           path: tests/e2e/test-results/
 
+  production-rollout:
+    name: Production rollout and verified restore
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Disposable adoption, populated restore, and retained-data rollback
+        run: python3 -m scripts.development.check_production_rollout
+
   docker-build:
     runs-on: ubuntu-latest
     steps:

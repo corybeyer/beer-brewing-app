@@ -38,6 +38,28 @@ jobs:
           push: true
           tags: ghcr.io/${{ github.repository }}:sha-${{ github.event.workflow_run.head_sha }}
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+      - name: Publish validated UI and API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infrastructure/docker/candidate.Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: ghcr.io/${{ github.repository }}:app-sha-${{ github.event.workflow_run.head_sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha }}
+      - name: Publish validated database operator image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infrastructure/docker/api.Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: ghcr.io/${{ github.repository }}:operator-sha-${{ github.event.workflow_run.head_sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha }}
 
   deploy:
     name: Deploy to Raspberry Pi
