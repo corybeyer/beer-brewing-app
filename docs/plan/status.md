@@ -6,7 +6,7 @@ As of November 7, 2026 (America/Chicago). This is a development snapshot, not a 
 
 | Area | Observed state |
 | --- | --- |
-| Runtime | Root `app.py` remains the production smoke service. A separate development FastAPI factory provides `/health`, `/api/v1/readiness`, and versioned OpenAPI; no brewing APIs |
+| Runtime | Root `app.py` remains the production smoke service. FastAPI provides `/health`, `/api/v1/readiness`, and versioned OpenAPI; a separate candidate can also serve built frontend assets; no brewing APIs |
 | Tests | Categorized unit/integration/contract/browser tests; repository validator regression fixtures cover placement, dependencies, visuals, metadata, secret exclusions, and source-bound pre-PR reports |
 | Backend organization | FastAPI composition in `apps/api` (`brewery_api`); separate `brewery_database` and `brewery_config` packages. No brewing domain modules yet |
 | Frontend | Runnable React/TypeScript/Vite preview in `apps/web`: Home/Recipes/Settings navigation, honest UI-04 preview, service readiness. Shared controls/examples in `packages/ui`, visual foundations in `packages/design-system`; recipe operations remain unavailable |
@@ -76,7 +76,7 @@ The prototype was not integrated or executed during knowledge-base creation. Its
 
 ## Next action
 
-PR #5 has merged; its corrected workspace commit passed CI. The new container runtime check has now passed on GitHub's native Linux x64 runner. Complete M1 by deciding and validating production frontend/API serving and controlled deployment compatibility. D-02 is settled by ADR-0002/ADR-0005; feature data contracts in D-03 remain open. Use the [roadmap](roadmap.md) and [acceptance scenarios](../requirements/acceptance-scenarios.md) to scope each task. Preserve `/health`, the current Docker pathway, and recorded history.
+PR #6 has merged and deployed the retained smoke image successfully. The development container runtime check passed in CI. A separate single-origin UI/API candidate is now implemented under proposed ADR-0007, with native host serving checks passing. Review its candidate-container/ARM64 CI evidence and explicitly settle production adoption, database operations, backup/restore, and controlled deployment compatibility before replacing the smoke image. D-02 is settled by ADR-0002/ADR-0005; feature data contracts in D-03 remain open. Use the [roadmap](roadmap.md) and [acceptance scenarios](../requirements/acceptance-scenarios.md) to scope each task. Preserve `/health`, the current Docker pathway, and recorded history.
 
 ## M1 container-validation follow-up
 
@@ -90,3 +90,15 @@ On November 7, 2026, GitHub reported [PR #5](https://github.com/corybeyer/beer-b
 Subsequently, [PR #6](https://github.com/corybeyer/beer-brewing-app/pull/6) ran the check in [CI run 42413486785](https://github.com/corybeyer/beer-brewing-app/actions/runs/42413486785). Its [Container runtime job](https://github.com/corybeyer/beer-brewing-app/actions/runs/42413486785/job/128526413023) passed on native Linux x64, including all four phases and cleanup. This supplies actual container execution evidence for startup/migrations, secret isolation, PostgreSQL outage/recovery, retained cluster identity/readiness after recreation, and root smoke-image health. Repository policy, PostgreSQL tests, and frontend/browser checks also passed in that run. The final local pre-PR run passed all 42 Python tests, including both added cleanup checks, plus eight frontend validator checks, production build, and 36 browser checks; its source/base report was verified before PR creation. The GitHub connector published the same verified source tree because command-line Git credentials were unavailable. No missing PostgreSQL coverage was reported.
 
 This is M1 validation tooling under ADR-0003/ADR-0004/ADR-0005/ADR-0006, not completion of UI-04 or any brewing acceptance scenario. Database container recreation is not AC-14 backup restoration. UI-to-container traffic, production serving, and Pi deployment remain unverified; M1 is still open.
+
+## UI/API serving candidate and retained-service deployment
+
+On November 7, 2026, PR #6 merged as `a8c879d63c61fc42b469a6c99344b4828a12c34d`. [Main CI #15](https://github.com/corybeyer/beer-brewing-app/actions/runs/42414312310) passed all six jobs. [Publication and Pi deployment](https://github.com/corybeyer/beer-brewing-app/actions/runs/42414460287) then succeeded: its deployment log reports that exact commit's image pulled and `SUCCESS: Deployment healthy`. A subsequent local HTTP request to port 8080 returned the expected `/health` JSON. This deploys the retained health-only runtime, not the development UI/API or PostgreSQL stack.
+
+The next M1 slice implements [proposed ADR-0007](../architecture/decisions/0007-production-serving-candidate.md): optional built frontend serving in API composition, centralized asset-directory configuration, and a separate multistage candidate image on port 8080. The default API-only mode, root production image, production Compose ownership, and publish/deploy workflow remain unchanged. No production database, credentials, migrations, or rollout changes were made for the candidate.
+
+Native ARM64 host verification built the frontend and ran a temporary real FastAPI process against disposable PostgreSQL 17.11 over TCP/SCRAM with the actual administrator/migrator/application role commands. All 18 live desktop/tablet/phone browser checks passed across startup, stopped-database outage, and recovery; no API responses were mocked. Four HTTP/configuration integration tests passed for entry/assets/HEAD behavior, entry revalidation, unchanged health/OpenAPI, incomplete-build rejection, unknown/private/source routes, and denied symlink escape. Three container-check safety tests passed, including candidate/operator-image separation and scoped cleanup. Temporary services were stopped afterward.
+
+The independent `Candidate UI and API runtime` CI job runs those browser checks against the actual candidate Docker image, and the ARM64 job builds that image alongside the retained images. Candidate image/runtime evidence is distinct from native host success and is tracked by the owning PR's CI. Local Docker daemon access remains denied. The standard source-bound pre-PR report covers the regular policy/Python/build/36-browser suite; the live serving suite requires an explicitly running candidate and is recorded separately. See [candidate commands and limits](../../infrastructure/docker/README.md).
+
+UI-04 remains the existing honest preview with unavailable recipe operations. No brewing acceptance scenario or AC-14 restoration is completed, and M1 remains open pending candidate review/adoption and stateful production deployment validation.

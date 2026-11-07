@@ -8,6 +8,7 @@
 | [ADR-0004](0004-database-roles-and-secrets.md) | Accepted | Separate database roles and host-held credentials |
 | [ADR-0005](0005-workspace-boundaries.md) | Accepted | Workspace packages separated by responsibility |
 | [ADR-0006](0006-pre-pr-validation.md) | Accepted | Repository policy and required pre-PR validation command |
+| [ADR-0007](0007-production-serving-candidate.md) | Proposed | Single-origin frontend/API serving candidate |
 
 See [open decisions](../../plan/open-decisions.md) for outstanding choices. Preserve existing statuses until a decision is explicitly accepted; the prototype's implementation is not automatic approval of its architecture.
 

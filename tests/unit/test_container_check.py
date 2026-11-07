@@ -19,6 +19,12 @@ class ContainerCheckSafetyTests(unittest.TestCase):
         cleanup.assert_not_called()
 
     def test_startup_failure_cleans_only_isolated_project_resources(self):
+        self.assert_startup_failure(False)
+
+    def test_candidate_only_changes_runtime_image_and_keeps_isolated_cleanup(self):
+        self.assert_startup_failure(True)
+
+    def assert_startup_failure(self, candidate):
         observed = {}
 
         def command(*arguments, **options):
@@ -33,7 +39,11 @@ class ContainerCheckSafetyTests(unittest.TestCase):
                     'networks': {'default': {'name': 'brewery-development_default'}},
                     'secrets': {name: {'file': str(secret_directory / name)}
                                 for name in ('admin-password', 'migrator-password', 'app-password')},
-                    'services': {'backend': {'ports': [{'published': '8081', 'target': 8081}]}},
+                    'services': {
+                        name: {'ports': [{'published': '8081', 'target': 8081}],
+                               'build': {'dockerfile': 'infrastructure/docker/api.Dockerfile'}}
+                        for name in ('backend', 'provision', 'migrate')
+                    },
                 })
             if 'up' in arguments:
                 config_path = Path(arguments[arguments.index('-f') + 1])
@@ -46,6 +56,13 @@ class ContainerCheckSafetyTests(unittest.TestCase):
                     self.assertTrue(resource['name'].startswith(project + '-'))
                 self.assertEqual(config['services']['backend']['ports'][0]['host_ip'], '127.0.0.1')
                 self.assertEqual(config['services']['backend']['ports'][0]['published'], '0')
+                self.assertEqual(config['services']['backend']['ports'][0]['target'], 8080 if candidate else 8081)
+                self.assertEqual(config['services']['backend']['build']['dockerfile'],
+                                 'infrastructure/docker/candidate.Dockerfile' if candidate
+                                 else 'infrastructure/docker/api.Dockerfile')
+                for name in ('provision', 'migrate'):
+                    self.assertEqual(config['services'][name]['build']['dockerfile'],
+                                     'infrastructure/docker/api.Dockerfile')
                 for secret in config['secrets'].values():
                     self.assertEqual(Path(secret['file']).parent, config_path.parent)
                     self.assertTrue(Path(secret['file']).is_file())
@@ -56,7 +73,7 @@ class ContainerCheckSafetyTests(unittest.TestCase):
         with patch.object(check_containers, 'run', side_effect=command):
             with patch.object(check_containers.subprocess, 'run') as cleanup:
                 with self.assertRaises(subprocess.CalledProcessError):
-                    check_containers.main()
+                    check_containers.main(candidate=candidate)
         self.assertFalse(observed['directory'].exists())
         self.assertEqual(cleanup.call_args_list[0].args[0],
                          [*observed['compose'], 'down', '--volumes', '--remove-orphans'])
