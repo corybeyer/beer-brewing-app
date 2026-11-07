@@ -1,0 +1,50 @@
+{
+  "imported_on": "2026-11-07",
+  "files": [
+    {
+      "original_name": "PROJECT_REFERENCE.md",
+      "archived_path": "2026-10-project-reference.md",
+      "sha256": "ab2d180339bedc147b1622a42b644d3f8e9a6dbd8539435803660fcd56256e19"
+    },
+    {
+      "original_name": "README.md",
+      "archived_path": "manual-prototype/README.md",
+      "sha256": "bf4986db47d2ea4761dfc4653bb25c3901b9f3b0247121153695d033f13dd9b8"
+    },
+    {
+      "original_name": "VERIFICATION.md",
+      "archived_path": "manual-prototype/VERIFICATION.md",
+      "sha256": "3f44303fd56c298b3ca6c971e8fd2f6a381b0b09c9f43ad6018f1aad5ebc3d26"
+    },
+    {
+      "original_name": "app.py",
+      "archived_path": "manual-prototype/app.py.txt",
+      "sha256": "eb22c3615393e265304c83641dea76fd6cd2194b9508b316e9dc852f10744255"
+    },
+    {
+      "original_name": "index.html",
+      "archived_path": "manual-prototype/index.html.txt",
+      "sha256": "27c85292e1b583269e44fe142519b5660c7c95f0ada9c93859bc2c7fb92e621e"
+    },
+    {
+      "original_name": "requirements.txt",
+      "archived_path": "manual-prototype/requirements.txt",
+      "sha256": "9f01357979a8c0ba769b7a3f7157f8985f1f0710ef63fcf80314f30b77aff02e"
+    },
+    {
+      "original_name": "requirements-dev.txt",
+      "archived_path": "manual-prototype/requirements-dev.txt",
+      "sha256": "da21b08f1bb33b76c738bb3733d898e23682a19a6ba742061c275df38b8d7958"
+    },
+    {
+      "original_name": "sample-recipe.json",
+      "archived_path": "manual-prototype/sample-recipe.json",
+      "sha256": "8f1b37220d9c25bc0bddd0466bdfcdbaf6872325e29764b7009d8ed203ee6d2f"
+    },
+    {
+      "original_name": "test_workflow.py",
+      "archived_path": "manual-prototype/test_workflow.py.txt",
+      "sha256": "78c0e9fdf136c816b049806ce0b677fb404c8315e4ed5b77818f218e951efe07"
+    }
+  ]
+}

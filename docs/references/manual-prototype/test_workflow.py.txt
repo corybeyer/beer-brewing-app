@@ -1,0 +1,96 @@
+import importlib.util
+import json
+import sqlite3
+import sys
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+@pytest.fixture
+def system(tmp_path,monkeypatch):
+    monkeypatch.setenv("BREWERY_DB",str(tmp_path/"test.sqlite"))
+    spec=importlib.util.spec_from_file_location("brewery_under_test",Path(__file__).parents[1]/"app.py")
+    mod=importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod,TestClient(mod.app)
+
+def batch(client,vid=1):
+    r=client.post("/api/batches",json={"version_id":vid,"name":"Test batch"})
+    assert r.status_code==200,r.text
+    bid=r.json()["id"]
+    assert client.post(f"/api/batches/{bid}/start").status_code==200
+    return bid
+
+def step(client,bid,key,operation="complete",**extra):
+    s=next(s for s in client.get(f"/api/batches/{bid}").json()["steps"] if s["step_key"]==key)
+    return client.post(f"/api/batches/{bid}/steps/{s['id']}/confirm",json={"operation":operation,**extra})
+
+def test_parallel_additions_and_restart(system,monkeypatch):
+    mod,c=system
+    stamp=[1000000.0]
+    monkeypatch.setattr(mod.time,"time",lambda:stamp[0])
+    bid=batch(c)
+    assert step(c,bid,"grain").status_code==400
+    assert step(c,bid,"heat").status_code==200
+    assert step(c,bid,"grain").status_code==200
+    assert step(c,bid,"mash","start").status_code==200
+    assert step(c,bid,"mash").status_code==400
+    stamp[0]+=3600
+    assert step(c,bid,"mash").status_code==200
+    assert step(c,bid,"sparge").status_code==200
+    assert step(c,bid,"boil","start").status_code==200
+    assert step(c,bid,"hop1").status_code==200
+    assert step(c,bid,"hop2").status_code==400
+    # New client retains the same database/timer, independent of browser state.
+    c2=TestClient(mod.app)
+    s=c2.get(f"/api/batches/{bid}").json()
+    boil=next(x for x in s["steps"] if x["step_key"]=="boil")
+    assert boil["deadline"]==stamp[0]+3600
+    stamp[0]+=2700
+    s=c2.get(f"/api/batches/{bid}").json()
+    assert any("late hops" in x["message"] for x in s["alerts"])
+    assert step(c2,bid,"hop2").status_code==200
+    stamp[0]+=900
+    assert step(c2,bid,"boil").status_code==200
+    assert step(c2,bid,"chill").status_code==200
+    assert step(c2,bid,"pitch").json()["status"]=="complete"
+
+def test_confirmations_idempotent_and_cross_batch_rejected(system):
+    mod,c=system
+    a,b=batch(c),batch(c)
+    sid=c.get(f"/api/batches/{a}").json()["steps"][0]["id"]
+    assert c.post(f"/api/batches/{b}/steps/{sid}/confirm",json={}).status_code==400
+    for _ in range(2):assert step(c,a,"heat").status_code==200
+    events=c.get(f"/api/batches/{a}").json()["events"]
+    assert len([e for e in events if e["kind"]=="action_confirmed"])==1
+    assert c.get(f"/api/batches/{b}").json()["steps"][0]["status"]=="pending"
+
+def test_published_versions_and_batch_snapshots(system):
+    mod,c=system
+    plan=c.get("/api/recipes").json()[0]["plan"]
+    bid=batch(c)
+    plan["name"]="Changed name"
+    assert c.put("/api/recipes/1",json={"plan":plan}).status_code==400
+    v=c.post("/api/recipes",json={"recipe_id":1,"plan":plan}).json()["id"]
+    assert c.post(f"/api/recipes/{v}/publish").status_code==200
+    assert c.get(f"/api/batches/{bid}").json()["plan"]["name"]!="Changed name"
+    with mod.connect() as db:
+        with pytest.raises(sqlite3.IntegrityError):
+            db.execute("UPDATE versions SET plan='{}' WHERE id=1")
+
+def test_cycles_missing_anchors_and_invalid_values(system):
+    mod,c=system
+    plan=c.get("/api/recipes").json()[0]["plan"]
+    plan["steps"][0]["depends_on"]=["pitch"]
+    assert c.post("/api/recipes",json={"plan":plan}).status_code==400
+    plan["steps"][0]["depends_on"]=[]
+    plan["steps"][1]["anchor"]="other_recipe_step"
+    assert c.post("/api/recipes",json={"plan":plan}).status_code==400
+    bid=batch(c)
+    assert c.post(f"/api/batches/{bid}/readings",json={"purpose":"temperature","vessel":"Mash","value":999}).status_code==400
+    assert c.post(f"/api/batches/{bid}/tastings",json={"rating":6}).status_code==400
+    assert c.post(f"/api/batches/{bid}/readings",json={"purpose":"original_gravity","vessel":"Fermenter","value":1.052}).status_code==200
+    for rating in [3,4]:
+        assert c.post(f"/api/batches/{bid}/tastings",json={"rating":rating,"Flavor":"Citrus"}).status_code==200
+    assert len(c.get(f"/api/batches/{bid}").json()["tastings"])==2

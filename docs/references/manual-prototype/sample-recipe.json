@@ -1,0 +1,29 @@
+{
+  "name": "Cory’s Pale Ale — sample",
+  "style": "BJCP 2021 • 18B — American Pale Ale",
+  "source": "Illustrative personal recipe; review before brewing.",
+  "tags": ["Citrus", "Sample"],
+  "batch_gal": 5,
+  "target_og": 1.050,
+  "target_fg": 1.010,
+  "boil_minutes": 60,
+  "ingredients": [
+    {"name": "Pale malt", "category": "Grain", "amount": 9, "unit": "lb"},
+    {"name": "Crystal 40L", "category": "Grain", "amount": 0.5, "unit": "lb"},
+    {"name": "Cascade — bittering", "category": "Hops", "amount": 1, "unit": "oz"},
+    {"name": "Cascade — late", "category": "Hops", "amount": 0.5, "unit": "oz"},
+    {"name": "US-05", "category": "Yeast", "amount": 1, "unit": "packet"},
+    {"name": "Irish moss", "category": "Other", "amount": 1, "unit": "tsp"}
+  ],
+  "steps": [
+    {"key":"heat","stage":"Prepare","title":"Heat strike water","kind":"action","instructions":"Heat the planned strike-water volume. Verify the recipe’s water calculation, then confirm when ready to transfer.","target_f":165,"vessel":"HLT","depends_on":[]},
+    {"key":"grain","stage":"Mash","title":"Transfer strike water and add grain","kind":"action","instructions":"Transfer water to the mash tun, add the grain bill, and stir thoroughly. Confirm the actual mash-in.","vessel":"Mash","depends_on":["heat"]},
+    {"key":"mash","stage":"Mash","title":"Hold mash temperature","kind":"hold","instructions":"Hold near the mash target. No HERMS route is assumed; check temperature and manage the mash manually.","target_f":152,"vessel":"Mash","duration_seconds":3600,"depends_on":["grain"]},
+    {"key":"sparge","stage":"Sparge","title":"Sparge and collect wort","kind":"action","instructions":"Follow your chosen hose routing and sparge plan. Collect the reviewed pre-boil target volume; record actual volume and gravity.","vessel":"Kettle","depends_on":["mash"]},
+    {"key":"boil","stage":"Boil","title":"Confirm rolling boil","kind":"hold","instructions":"Confirm a rolling boil before starting the 60-minute clock. Perform the hop additions while this timer runs.","vessel":"Kettle","duration_seconds":3600,"depends_on":["sparge"]},
+    {"key":"hop1","stage":"Boil","title":"Add bittering hops","kind":"addition","instructions":"Add 1 oz Cascade at the start of the boil, then confirm the addition.","anchor":"boil","offset_seconds":0,"depends_on":["sparge"]},
+    {"key":"hop2","stage":"Boil","title":"Add late hops and Irish moss","kind":"addition","instructions":"With 15 minutes remaining, add 0.5 oz Cascade and 1 tsp Irish moss. Confirm both additions.","anchor":"boil","offset_seconds":2700,"depends_on":["hop1"]},
+    {"key":"chill","stage":"Chill","title":"Chill wort","kind":"action","instructions":"Turn off propane. Use the immersion chiller to reach the yeast’s pitching target. Confirm actual temperature before moving on.","target_f":68,"vessel":"Kettle","depends_on":["boil","hop2"]},
+    {"key":"pitch","stage":"Chill","title":"Transfer, measure gravity, and pitch yeast","kind":"action","instructions":"Transfer to the fermenter, record volume and original gravity, and pitch yeast according to its instructions. This completes brew day; fermentation and tastings remain in the batch record.","vessel":"Fermenter","depends_on":["chill"]}
+  ]
+}

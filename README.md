@@ -2,6 +2,10 @@
 
 Locally hosted companion application for five-gallon all-grain brewing, running on a Raspberry Pi 5.
 
+## Development context
+
+Start with the [project knowledge base](docs/README.md) for [product scope](docs/requirements/product-scope.md), [current implementation status](docs/plan/status.md), [roadmap](docs/plan/roadmap.md), and [screen designs](docs/design/screens.md). The supplied manual prototype and wireframes are development references; they have not been integrated into the active health service.
+
 ## Project goals
 
 - Manage recipes, instructions, reminders, and brew-day timers.

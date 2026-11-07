@@ -1,5 +1,7 @@
 # System architecture
 
+Knowledge-base links: [product scope](../requirements/product-scope.md), [target data model](data-model.md), [current development evidence](../plan/status.md), and [open decisions](../plan/open-decisions.md). Runtime/deployment statements below record the repository baseline; they are not a fresh inspection of the Pi.
+
 ## Implemented today
 - Public repository: corybeyer/beer-brewing-app; default branch: main.
 - GitHub Actions: pull-request CI, ARM64 image build/publish after passing main CI, Tailscale+SSH deployment.

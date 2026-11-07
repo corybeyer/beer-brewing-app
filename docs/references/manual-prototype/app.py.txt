@@ -1,0 +1,359 @@
+"""Manual home brewery prototype. All hardware actions remain with the brewer."""
+import json
+import os
+import sqlite3
+import time
+from contextlib import contextmanager
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
+ROOT = Path(__file__).parent
+DB = Path(os.environ.get("BREWERY_DB", str(ROOT / "data" / "brewery.sqlite")))
+app = FastAPI(title="Home Brewery Companion")
+app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
+
+@contextmanager
+def connect():
+    DB.parent.mkdir(parents=True, exist_ok=True)
+    con = sqlite3.connect(DB, timeout=15)
+    con.row_factory = sqlite3.Row
+    con.execute("PRAGMA foreign_keys=ON")
+    try:
+        yield con
+        con.commit()
+    except Exception:
+        con.rollback()
+        raise
+    finally:
+        con.close()
+
+def fail(message):
+    raise HTTPException(400, message)
+
+def get(con, table, id):
+    row = con.execute(f"SELECT * FROM {table} WHERE id=?", (id,)).fetchone()
+    if row is None:
+        raise HTTPException(404, "Record not found")
+    return row
+
+def initialize():
+    with connect() as c:
+        c.executescript("""
+        CREATE TABLE IF NOT EXISTS recipes(id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS versions(
+          id INTEGER PRIMARY KEY, recipe_id INTEGER NOT NULL REFERENCES recipes(id),
+          number INTEGER NOT NULL, status TEXT NOT NULL CHECK(status IN ('draft','published')),
+          plan TEXT NOT NULL, UNIQUE(recipe_id,number));
+        CREATE TRIGGER IF NOT EXISTS immutable_version BEFORE UPDATE ON versions
+          WHEN OLD.status='published' BEGIN SELECT RAISE(ABORT,'Published version is immutable'); END;
+        CREATE TRIGGER IF NOT EXISTS no_delete_published BEFORE DELETE ON versions
+          WHEN OLD.status='published' BEGIN SELECT RAISE(ABORT,'Published version is immutable'); END;
+        CREATE TABLE IF NOT EXISTS batches(
+          id INTEGER PRIMARY KEY, version_id INTEGER NOT NULL REFERENCES versions(id),
+          name TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('setup','brewing','complete')),
+          plan TEXT NOT NULL, setup TEXT NOT NULL, started_at REAL, packaged_at REAL);
+        CREATE TABLE IF NOT EXISTS steps(
+          id INTEGER PRIMARY KEY, batch_id INTEGER NOT NULL REFERENCES batches(id),
+          step_key TEXT NOT NULL, position INTEGER NOT NULL, definition TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','running','complete')),
+          started_at REAL, completed_at REAL, deadline REAL, UNIQUE(batch_id,step_key));
+        CREATE TABLE IF NOT EXISTS events(
+          id INTEGER PRIMARY KEY, batch_id INTEGER NOT NULL REFERENCES batches(id),
+          step_id INTEGER REFERENCES steps(id), kind TEXT NOT NULL,
+          occurred_at REAL NOT NULL, recorded_at REAL NOT NULL, details TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS readings(
+          id INTEGER PRIMARY KEY, batch_id INTEGER NOT NULL REFERENCES batches(id),
+          vessel TEXT NOT NULL, purpose TEXT NOT NULL, value REAL NOT NULL,
+          unit TEXT NOT NULL, source TEXT NOT NULL DEFAULT 'manual',
+          measured_at REAL NOT NULL, received_at REAL NOT NULL);
+        CREATE TABLE IF NOT EXISTS alerts(
+          id INTEGER PRIMARY KEY, batch_id INTEGER NOT NULL REFERENCES batches(id),
+          step_id INTEGER NOT NULL REFERENCES steps(id), message TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'due' CHECK(status IN ('due','acknowledged')),
+          due_at REAL NOT NULL, acknowledged_at REAL, UNIQUE(step_id));
+        CREATE TABLE IF NOT EXISTS tastings(
+          id INTEGER PRIMARY KEY, batch_id INTEGER NOT NULL REFERENCES batches(id),
+          tasted_at REAL NOT NULL, rating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),
+          details TEXT NOT NULL);
+        """)
+        if not c.execute("SELECT 1 FROM recipes").fetchone():
+            plan = json.loads((ROOT / "sample-recipe.json").read_text())
+            rid = c.execute("INSERT INTO recipes(name) VALUES(?)", (plan["name"],)).lastrowid
+            c.execute("INSERT INTO versions(recipe_id,number,status,plan) VALUES(?,1,'published',?)",
+                      (rid, json.dumps(plan)))
+
+def validate(plan):
+    if not isinstance(plan, dict):
+        fail("Recipe must be an object")
+    if not str(plan.get("name", "")).strip():
+        fail("Recipe needs a name")
+    for field in ["batch_gal", "boil_minutes"]:
+        v=plan.get(field)
+        if not isinstance(v,(int,float)) or isinstance(v,bool) or not 0 < v < 1000:
+            fail(f"{field} must be a positive number")
+    for field in ["target_og","target_fg"]:
+        if not isinstance(plan.get(field),(int,float)) or not 0.9 < plan[field] < 1.3:
+            fail(f"{field} must be a valid specific gravity")
+    ingredients = plan.get("ingredients", [])
+    if not isinstance(ingredients,list) or not ingredients:
+        fail("Add ingredients")
+    for item in ingredients:
+        if not isinstance(item,dict) or not item.get("name") or not item.get("unit"):
+            fail("Each ingredient needs a name and unit")
+        if not isinstance(item.get("amount"),(int,float)) or not 0 < item["amount"] < 10000:
+            fail("Ingredient quantities must be positive")
+    steps=plan.get("steps")
+    if not isinstance(steps,list) or not steps:
+        fail("Add brewing steps")
+    keys=[s.get("key") for s in steps if isinstance(s,dict)]
+    if len(keys)!=len(steps) or any(not k or not isinstance(k,str) for k in keys) or len(set(keys))!=len(keys):
+        fail("Step keys must be unique, nonempty text")
+    graph={}
+    for s in steps:
+        if not s.get("title") or s.get("kind") not in ["action","hold","addition"]:
+            fail("Steps need a title and supported kind")
+        for f in ["duration_seconds","offset_seconds"]:
+            if not isinstance(s.get(f,0),(int,float)) or not 0 <= s.get(f,0) <= 604800:
+                fail("Timing must be between zero and seven days")
+        if s["kind"]=="hold" and s.get("duration_seconds",0)<=0:
+            fail("A hold needs a positive duration")
+        if s.get("target_f") is not None and (not isinstance(s["target_f"],(int,float)) or not 32<=s["target_f"]<=220):
+            fail("Temperature target must be 32–220°F")
+        if s.get("vessel") not in ["HLT","Mash","Kettle","Fermenter",None]:
+            fail("Unknown vessel")
+        deps=s.get("depends_on",[])
+        if not isinstance(deps,list):
+            fail("Dependencies must be a list")
+        if s.get("anchor"):
+            deps=deps+[s["anchor"]]
+        if any(d not in keys for d in deps):
+            fail("All dependencies and anchors must belong to this recipe")
+        graph[s["key"]]=deps
+    seen=set()
+    visiting=set()
+    def visit(k):
+        if k in visiting:
+            fail("Step dependencies contain a cycle")
+        if k in seen:return
+        visiting.add(k)
+        for d in graph[k]:visit(d)
+        visiting.remove(k)
+        seen.add(k)
+    for k in keys:visit(k)
+
+def event(c,bid,kind,details,step_id=None):
+    now=time.time()
+    c.execute("INSERT INTO events(batch_id,step_id,kind,occurred_at,recorded_at,details) VALUES(?,?,?,?,?,?)",
+              (bid,step_id,kind,now,now,json.dumps(details)))
+
+def allsteps(c,bid):
+    return c.execute("SELECT * FROM steps WHERE batch_id=? ORDER BY position",(bid,)).fetchall()
+
+def scheduled(s,index):
+    d=json.loads(s["definition"])
+    if d.get("anchor"):
+        anchor=index[d["anchor"]]
+        if anchor["started_at"] is None:return None
+        return anchor["started_at"]+d.get("offset_seconds",0)
+    return None
+
+def eligible(s,index):
+    d=json.loads(s["definition"])
+    return all(index[k]["status"]=="complete" for k in d.get("depends_on",[])) and (
+        not d.get("anchor") or index[d["anchor"]]["started_at"] is not None)
+
+def state(c,bid):
+    b=dict(get(c,"batches",bid))
+    b["plan"]=json.loads(b["plan"])
+    b["setup"]=json.loads(b["setup"])
+    now=time.time()
+    rows=allsteps(c,bid)
+    index={s["step_key"]:s for s in rows}
+    for s in rows:
+        due=s["deadline"] if s["status"]=="running" else scheduled(s,index)
+        if b["status"]=="brewing" and s["status"]!="complete" and due is not None and due<=now and eligible(s,index):
+            d=json.loads(s["definition"])
+            c.execute("INSERT OR IGNORE INTO alerts(batch_id,step_id,message,due_at) VALUES(?,?,?,?)",
+                      (bid,s["id"],d["title"]+(" — timer finished" if s["status"]=="running" else " — action due"),due))
+    steps=[]
+    for row in rows:
+        s=dict(row)
+        s["definition"]=json.loads(s["definition"])
+        s["eligible"]=eligible(row,index)
+        s["due_at"]=scheduled(row,index)
+        steps.append(s)
+    b["steps"]=steps
+    b["readings"]=[dict(r) for r in c.execute("SELECT * FROM readings WHERE batch_id=? ORDER BY measured_at,id",(bid,))]
+    b["events"]=[{**dict(r),"details":json.loads(r["details"])} for r in c.execute("SELECT * FROM events WHERE batch_id=? ORDER BY id DESC",(bid,))]
+    b["alerts"]=[dict(r) for r in c.execute("SELECT * FROM alerts WHERE batch_id=? ORDER BY due_at",(bid,))]
+    b["tastings"]=[{**dict(r),"details":json.loads(r["details"])} for r in c.execute("SELECT * FROM tastings WHERE batch_id=? ORDER BY tasted_at DESC",(bid,))]
+    b["server_time"]=now
+    return b
+
+@app.get("/")
+def home():return FileResponse(ROOT / "static" / "index.html")
+
+@app.get("/api/recipes")
+def recipes():
+    with connect() as c:
+        return [{**dict(r),"plan":json.loads(r["plan"])} for r in c.execute(
+            "SELECT v.* FROM versions v ORDER BY recipe_id,number DESC")]
+
+@app.post("/api/recipes")
+def create_recipe(body:dict):
+    plan=body.get("plan")
+    validate(plan)
+    with connect() as c:
+        if body.get("recipe_id"):
+            rid=body["recipe_id"]
+            get(c,"recipes",rid)
+            number=c.execute("SELECT MAX(number)+1 FROM versions WHERE recipe_id=?",(rid,)).fetchone()[0]
+        else:
+            rid=c.execute("INSERT INTO recipes(name) VALUES(?)",(plan["name"],)).lastrowid
+            number=1
+        vid=c.execute("INSERT INTO versions(recipe_id,number,status,plan) VALUES(?,?,'draft',?)",
+                      (rid,number,json.dumps(plan))).lastrowid
+        return {"id":vid}
+
+@app.put("/api/recipes/{vid}")
+def update_recipe(vid:int,body:dict):
+    validate(body.get("plan"))
+    with connect() as c:
+        if get(c,"versions",vid)["status"]!="draft":fail("Create a revision to edit a published version")
+        c.execute("UPDATE versions SET plan=? WHERE id=?",(json.dumps(body["plan"]),vid))
+    return {"ok":True}
+
+@app.post("/api/recipes/{vid}/publish")
+def publish(vid:int):
+    with connect() as c:
+        v=get(c,"versions",vid)
+        validate(json.loads(v["plan"]))
+        if v["status"]=="draft":c.execute("UPDATE versions SET status='published' WHERE id=?",(vid,))
+    return {"ok":True}
+
+@app.get("/api/batches")
+def batches():
+    with connect() as c:
+        return [dict(r) for r in c.execute("SELECT id,name,status,started_at FROM batches ORDER BY id DESC")]
+
+@app.post("/api/batches")
+def create_batch(body:dict):
+    with connect() as c:
+        v=get(c,"versions",body.get("version_id"))
+        if v["status"]!="published":fail("Publish and review the recipe before starting a batch")
+        plan=json.loads(v["plan"])
+        validate(plan)
+        name=str(body.get("name","")).strip()
+        if not name:fail("Batch needs a name")
+        setup={"equipment":"Outdoor three-vessel setup","burners":2,"pumps":2,
+               "chiller":"Immersion","herms":False,"readiness":body.get("readiness",{}),
+               "substitutions":body.get("substitutions",""),"inputs":"manual",
+               "planned_date":body.get("planned_date","")}
+        bid=c.execute("INSERT INTO batches(version_id,name,status,plan,setup) VALUES(?,?,'setup',?,?)",
+                      (v["id"],name,json.dumps(plan),json.dumps(setup))).lastrowid
+        for pos,s in enumerate(plan["steps"]):
+            c.execute("INSERT INTO steps(batch_id,step_key,position,definition) VALUES(?,?,?,?)",
+                      (bid,s["key"],pos,json.dumps(s)))
+        return {"id":bid}
+
+@app.get("/api/batches/{bid}")
+def batch(bid:int):
+    with connect() as c:return state(c,bid)
+
+@app.post("/api/batches/{bid}/start")
+def start(bid:int):
+    with connect() as c:
+        c.execute("BEGIN IMMEDIATE")
+        b=get(c,"batches",bid)
+        if b["status"]=="setup":
+            c.execute("UPDATE batches SET status='brewing',started_at=? WHERE id=?",(time.time(),bid))
+            event(c,bid,"session_started",{})
+        return state(c,bid)
+
+@app.post("/api/batches/{bid}/steps/{sid}/confirm")
+def confirm(bid:int,sid:int,body:dict):
+    with connect() as c:
+        c.execute("BEGIN IMMEDIATE")
+        b=get(c,"batches",bid)
+        s=get(c,"steps",sid)
+        if s["batch_id"]!=bid:fail("Step belongs to another batch")
+        if b["status"]!="brewing":fail("Start the brew session first")
+        operation=body.get("operation","complete")
+        if operation not in ["start","complete"]:fail("Unknown operation")
+        d=json.loads(s["definition"])
+        if s["status"]=="complete":return state(c,bid)
+        if operation=="start" and s["status"]=="running":return state(c,bid)
+        index={r["step_key"]:r for r in allsteps(c,bid)}
+        if not eligible(s,index):fail("Confirm the required earlier actions first")
+        now=time.time()
+        due=scheduled(s,index)
+        early_due=due is not None and due>now
+        early_hold=s["status"]=="running" and s["deadline"] is not None and s["deadline"]>now
+        if (early_due or (operation=="complete" and early_hold)) and not str(body.get("reason","")).strip():
+            fail("Record a reason to act before the planned time")
+        if d["kind"]=="hold" and s["status"]=="pending":
+            if operation!="start":fail("Start this hold before completing it")
+            c.execute("UPDATE steps SET status='running',started_at=?,deadline=? WHERE id=?",
+                      (now,now+d["duration_seconds"],sid))
+            event(c,bid,"hold_started",{"title":d["title"]},sid)
+        else:
+            if operation=="start":fail("This action requires a completion confirmation")
+            c.execute("UPDATE steps SET status='complete',started_at=COALESCE(started_at,?),completed_at=? WHERE id=?",
+                      (now,now,sid))
+            event(c,bid,"action_confirmed",{"title":d["title"],"reason":body.get("reason",""),"planned_due":due},sid)
+            c.execute("UPDATE alerts SET status='acknowledged',acknowledged_at=? WHERE step_id=?",(now,sid))
+        remaining=c.execute("SELECT 1 FROM steps WHERE batch_id=? AND status!='complete'",(bid,)).fetchone()
+        if not remaining:
+            c.execute("UPDATE batches SET status='complete' WHERE id=?",(bid,))
+            event(c,bid,"brew_complete",{})
+        return state(c,bid)
+
+@app.post("/api/batches/{bid}/readings")
+def reading(bid:int,body:dict):
+    purpose=body.get("purpose")
+    units={"temperature":"°F","original_gravity":"SG","final_gravity":"SG","pre_boil_gravity":"SG",
+           "kettle_volume":"gal","packaged_volume":"gal","fermenter_volume":"gal","ph":"pH"}
+    if purpose not in units:fail("Unknown measurement purpose")
+    try:value=float(body["value"])
+    except (ValueError,TypeError,KeyError):fail("Enter a numeric measurement")
+    bounds={"temperature":(32,220),"original_gravity":(.9,1.3),"final_gravity":(.9,1.3),
+            "pre_boil_gravity":(.9,1.3),"ph":(0,14)}
+    lo,hi=bounds.get(purpose,(0,100))
+    if not lo<=value<=hi:fail("Measurement is outside the supported range; verify the value and units")
+    vessel=body.get("vessel","")
+    if vessel not in ["HLT","Mash","Kettle","Fermenter"]:fail("Select a vessel")
+    with connect() as c:
+        get(c,"batches",bid)
+        now=time.time()
+        c.execute("INSERT INTO readings(batch_id,vessel,purpose,value,unit,measured_at,received_at) VALUES(?,?,?,?,?,?,?)",
+                  (bid,vessel,purpose,value,units[purpose],now,now))
+    return {"ok":True}
+
+@app.post("/api/batches/{bid}/notes")
+def note(bid:int,body:dict):
+    text=str(body.get("text","")).strip()
+    if not text:fail("Enter a note")
+    with connect() as c:
+        get(c,"batches",bid)
+        event(c,bid,"note",{"text":text})
+    return {"ok":True}
+
+@app.post("/api/batches/{bid}/tastings")
+def tasting(bid:int,body:dict):
+    if not isinstance(body.get("rating"),int) or not 1<=body["rating"]<=5:fail("Rating must be 1–5")
+    with connect() as c:
+        get(c,"batches",bid)
+        c.execute("INSERT INTO tastings(batch_id,tasted_at,rating,details) VALUES(?,?,?,?)",
+                  (bid,time.time(),body["rating"],json.dumps(body)))
+    return {"ok":True}
+
+@app.get("/api/export")
+def export():
+    with connect() as c:
+        return {t:[dict(r) for r in c.execute(f"SELECT * FROM {t}")] for t in
+                ["recipes","versions","batches","steps","events","readings","alerts","tastings"]}
+
+initialize()
