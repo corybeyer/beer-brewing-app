@@ -17,7 +17,7 @@ RULES = {
     'layout.owner', 'layout.source', 'layout.test', 'layout.contract', 'layout.migration',
     'layout.lock', 'layout.generated', 'security.file', 'security.content', 'security.ignore',
     'python.syntax', 'python.dependency', 'python.dynamic', 'python.configuration',
-    'python.ddl', 'manifest.dependencies', 'manifest.exports', 'manifest.cycle',
+    'python.ddl', 'manifest.dependencies', 'manifest.exports', 'manifest.cycle', 'manifest.optional-lock',
     'migration.graph', 'migration.readiness', 'docs.link', 'syntax.json', 'tool.frontend',
     'js.syntax', 'js.dependency', 'js.private-import', 'js.undeclared', 'js.dynamic',
     'js.inline-style', 'js.literal', 'js.native-control', 'js.svg', 'js.transport', 'js.configuration',
@@ -221,6 +221,37 @@ def migration_findings(files):
     return results
 
 
+def lock_findings(files):
+    """A lock produced with existing native modules can omit other platforms."""
+    source = files.get('package-lock.json')
+    if source is None:
+        return [finding('layout.lock', 'package-lock.json', 'Commit the root workspace lock.')] if 'package.json' in files else []
+    try:
+        lock = json.loads(source)
+    except ValueError:
+        return []  # The JSON syntax rule reports malformed input.
+    packages = lock.get('packages')
+    if not isinstance(packages, dict):
+        return [finding('manifest.optional-lock', 'package-lock.json', 'Expected a complete npm workspace package map.')]
+    results = []
+    for parent, metadata in packages.items():
+        for dependency, requested in metadata.get('optionalDependencies', {}).items():
+            current, resolved = parent, None
+            while True:
+                candidate = posixpath.join(current, 'node_modules', dependency)
+                if candidate in packages:
+                    resolved = packages[candidate]
+                    break
+                if not current:
+                    break
+                current = posixpath.dirname(current)
+            exact = isinstance(requested, str) and re.fullmatch(r'\d+\.\d+\.\d+(?:-[\w.-]+)?', requested)
+            if resolved is None or exact and resolved.get('version') != requested:
+                results.append(finding('manifest.optional-lock', 'package-lock.json',
+                    f'Optional dependency {dependency} of {parent or "root"} is missing or mismatched. Regenerate the lock in a clean manifest-only workspace.'))
+    return results
+
+
 def python_checks(files, policy):
     results = []
     for path, content in files.items():
@@ -276,6 +307,7 @@ def python_checks(files, policy):
                 if target and resolved not in files and not any(f.startswith(resolved.rstrip('/') + '/') for f in files):
                     results.append(finding('docs.link', path, 'Local documentation target is missing: ' + target))
     results.extend(migration_findings(files))
+    results.extend(lock_findings(files))
     return results
 
 

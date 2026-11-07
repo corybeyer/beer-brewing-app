@@ -43,7 +43,7 @@ This checks the entire Git-visible working snapshot, including new untracked sou
 | --- | --- |
 | File ownership | Approved root files, declared app/package owners, source language placement, categorized tests, one npm lock, contracts and migrations in their owning directories |
 | Python boundaries | Allowed package directions and external imports, literal/computed dynamic imports, relative package escape, centralized environment reads, DDL outside handlers |
-| Browser boundaries | Import/type-import/export/require/dynamic-import directions, public exports, declared dependencies, workspace registry, missing export targets, dependency cycles |
+| Browser boundaries | Import/type-import/export/require/dynamic-import directions, public exports, declared dependencies, workspace registry, missing export targets, dependency cycles, and complete optional-dependency lock records across platforms |
 | Shared presentation | Screens use library controls/icons rather than native replacements or SVGs; no screen-local style/sx/css/palette props; feature CSS is layout-only |
 | Tokens | No literal palette/dimensions outside token definitions, missing tokens, feature-local token definitions, external stylesheet imports, or undocumented breakpoints |
 | Transport/configuration | HTTP fetching stays in communications; browser environment handling needs a central configuration adapter; runtime code cannot import provisioning/deployment tooling |

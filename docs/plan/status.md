@@ -64,6 +64,8 @@ On November 7, 2026, [ADR-0006](../architecture/decisions/0006-pre-pr-validation
 
 The current repository passed the fast checker. Positive/negative regression fixtures passed (11 Python policy tests, eight frontend parser tests, and three pre-PR report tests). Full pre-PR step outcomes and missing database coverage are recorded by the command in ignored `.validation/pre-pr.json`; stale source/base commits invalidate that report. CI and actual branch protection remain distinct: the job is defined in source, but no GitHub ruleset or production configuration was changed.
 
+PR #5's first frontend CI build exposed an ARM64-generated npm lock missing TypeScript's optional Linux x64 compiler package. The lock was regenerated from a clean manifest-only workspace without changing declared dependency versions. The policy validator now rejects missing/mismatched optional-dependency lock records, with a regression fixture for a compiler installed across ARM64/x64 and hoisted package resolution. CI must verify the corrected Linux x64 build independently of local ARM64 tests.
+
 ## Supplied reference prototype
 
 The [prototype archive](../references/README.md) describes a FastAPI/SQLite manual workflow with recipe versions, batch snapshots, timers, confirmations, manual readings, notes, review, tastings, and JSON export. It uses eight compact tables; the target logical model has 31 entities.

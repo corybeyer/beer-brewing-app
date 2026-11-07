@@ -4,13 +4,28 @@ import json
 from pathlib import Path
 import unittest
 
-from scripts.validation.repository import filter_exceptions, migration_findings, python_checks, validate_policy
+from scripts.validation.repository import filter_exceptions, lock_findings, migration_findings, python_checks, validate_policy
 
 ROOT = Path(__file__).resolve().parents[2]
 POLICY = json.loads((ROOT / 'scripts/validation/policy.json').read_text())
 
 
 class RepositoryValidatorTests(unittest.TestCase):
+    def test_optional_native_dependencies_are_locked_for_other_platforms(self):
+        packages = {
+            'apps/web/node_modules/compiler': {'version': '7.0.2', 'optionalDependencies': {
+                '@compiler/linux-arm64': '7.0.2', '@compiler/linux-x64': '7.0.2',
+            }},
+            'apps/web/node_modules/@compiler/linux-arm64': {'version': '7.0.2'},
+        }
+        files = {'package-lock.json': json.dumps({'packages': packages})}
+        self.assertEqual({item['rule'] for item in lock_findings(files)}, {'manifest.optional-lock'})
+        # A hoisted package is valid; resolution must follow Node's ancestors.
+        packages['node_modules/@compiler/linux-x64'] = {'version': '7.0.2'}
+        self.assertEqual(lock_findings({'package-lock.json': json.dumps({'packages': packages})}), [])
+        packages['node_modules/@compiler/linux-x64']['version'] = '7.0.1'
+        self.assertTrue(lock_findings({'package-lock.json': json.dumps({'packages': packages})}))
+
     def rules(self, files):
         return {item['rule'] for item in python_checks(files, POLICY)}
 
