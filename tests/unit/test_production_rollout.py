@@ -6,7 +6,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
-from infrastructure.deployment.production.install import install_files
+from infrastructure.deployment.production.install import install_files, refuse_unclaimed_volume
 from infrastructure.deployment.production.rollout import Deployment, REPOSITORY
 
 
@@ -123,6 +123,18 @@ class ProductionRolloutTests(unittest.TestCase):
 
 
 class ProductionInstallerTests(unittest.TestCase):
+    def test_first_install_refuses_an_unclaimed_existing_production_volume(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory) / 'not-installed'
+            deployment = Deployment(root, root / 'backups')
+            with patch.object(deployment, 'command', return_value=b'brewery-production-postgres\n'):
+                with self.assertRaisesRegex(ValueError, 'already exists'):
+                    refuse_unclaimed_volume(deployment)
+            self.assertFalse(root.exists())
+            with patch.object(deployment, 'command', return_value=b'unrelated-volume\n'):
+                refuse_unclaimed_volume(deployment)
+            self.assertFalse(root.exists())
+
     def test_installer_retains_exact_legacy_files_and_creates_private_credentials(self):
         with TemporaryDirectory() as directory:
             root = Path(directory)

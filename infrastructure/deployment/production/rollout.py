@@ -18,6 +18,7 @@ import uuid
 
 REPOSITORY = 'ghcr.io/corybeyer/beer-brewing-app'
 BASELINE = '0001_baseline'
+DATA_VOLUME = 'brewery-production-postgres'
 
 
 def atomic_write(path, content, mode=0o600):
@@ -68,7 +69,7 @@ class Deployment:
             'BREWERY_IMAGE': application, 'BREWERY_OPERATOR_IMAGE': operator,
             'BREWERY_SECRETS_DIR': str(self.root / 'secrets'),
             'BREWERY_PROJECT_NAME': 'beer-brewing-app',
-            'BREWERY_DATA_VOLUME': 'brewery-production-postgres',
+            'BREWERY_DATA_VOLUME': DATA_VOLUME,
             'BREWERY_BIND_ADDRESS': '0.0.0.0', 'BREWERY_HTTP_PORT': '8080',
             **self.settings,
         }

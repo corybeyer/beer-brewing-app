@@ -11,9 +11,9 @@ import subprocess
 import tempfile
 
 if __package__:
-    from .rollout import Deployment, REPOSITORY, atomic_write
+    from .rollout import DATA_VOLUME, Deployment, REPOSITORY, atomic_write
 else:
-    from rollout import Deployment, REPOSITORY, atomic_write
+    from rollout import DATA_VOLUME, Deployment, REPOSITORY, atomic_write
 
 
 def private_directory(path):
@@ -22,6 +22,13 @@ def private_directory(path):
     path.mkdir(mode=0o700, parents=True, exist_ok=True)
     if path.stat().st_uid != os.geteuid() or path.stat().st_mode & 0o077:
         raise ValueError('Installation directory must be privately owned by the administrator')
+
+
+def refuse_unclaimed_volume(deployment):
+    if not deployment.root.exists():
+        volumes = deployment.command('volume', 'ls', '--format', '{{.Name}}').decode().splitlines()
+        if DATA_VOLUME in volumes:
+            raise ValueError('Production volume already exists without this installation; administrator review is required')
 
 
 def install_files(host, binaries, units, initial_images):
@@ -112,6 +119,7 @@ def main():
     # Resolve/validate both images before changing any host files.
     deployment = Deployment(host / 'runtime', '/var/backups/beer-brewing-app')
     application, operator = deployment.image(args.commit, 'app'), deployment.image(args.commit, 'operator')
+    refuse_unclaimed_volume(deployment)
     private_directory(Path('/var/backups/beer-brewing-app'))
     if deployment.root.exists():
         private_directory(deployment.root)
