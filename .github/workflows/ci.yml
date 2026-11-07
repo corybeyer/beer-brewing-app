@@ -111,6 +111,19 @@ jobs:
           name: frontend-browser-results
           path: tests/e2e/test-results/
 
+  container-runtime:
+    name: Container runtime
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Development stack and production smoke regression
+        run: python3 scripts/development/check_containers.py
+
   docker-build:
     runs-on: ubuntu-latest
     steps:
