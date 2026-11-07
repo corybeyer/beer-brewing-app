@@ -20,7 +20,7 @@ Build a representative vertical workflow early. Implement relational constraints
 
 ## Next development task
 
-Prepare M1 by settling the backend/frontend/persistence ADRs, then specify a small runnable foundation using `app/`, `web/`, and `contracts/`. Define its package/entrypoint naming explicitly: root `app.py` and directory `app/` currently coexist. Preserve the smoke service and deployment behavior until replacement checks and a controlled deployment succeed.
+The backend/persistence portion of M1 now has an isolated FastAPI/PostgreSQL foundation under [ADR-0003](../decisions/0003-postgresql-foundation.md). Next settle D-02 and implement the frontend foundation, then validate container operation and controlled deployment compatibility before replacing the smoke service. Package `brewery` in `app/brewery/` avoids the root `app.py` naming conflict. Feature contracts and business-table migrations remain owning-feature work.
 
 Use the archived prototype to study behavior and acceptance examples. Port one capability at a time into the chosen boundaries rather than replacing root `app.py` or copying the single-file UI wholesale.
 
