@@ -20,7 +20,7 @@ Build a representative vertical workflow early. Implement relational constraints
 
 ## Next development task
 
-The backend/persistence portion of M1 now has an isolated FastAPI/PostgreSQL foundation under [ADR-0003](../decisions/0003-postgresql-foundation.md). Next settle D-02 and implement the frontend foundation, then validate container operation and controlled deployment compatibility before replacing the smoke service. Package `brewery` in `app/brewery/` avoids the root `app.py` naming conflict. Feature contracts and business-table migrations remain owning-feature work.
+The backend/persistence portion of M1 now has an isolated FastAPI/PostgreSQL foundation under [ADR-0003](../architecture/decisions/0003-postgresql-foundation.md). The frontend preview and workspace boundaries now follow ADR-0002/ADR-0005. Next validate the development containers end to end and review production serving/deployment before replacing the smoke service. The API entrypoint is `brewery_api.api:create_app`, with separate UI/design-system/database/configuration/communications owners. Feature contracts and business-table migrations remain owning-feature work.
 
 Use the archived prototype to study behavior and acceptance examples. Port one capability at a time into the chosen boundaries rather than replacing root `app.py` or copying the single-file UI wholesale.
 

@@ -1,5 +1,7 @@
 # Layer boundaries
 
+The [workspace ownership map](../development/repository-layout.md) and [ADR-0005](decisions/0005-workspace-boundaries.md) assign these responsibilities to `apps/`, `packages/`, and `infrastructure/`. Shared controls belong in `packages/ui`; tokens, icons, and global foundations belong in `packages/design-system`. Feature CSS arranges those components rather than defining its own visual system.
+
 | Layer | Owns | May depend on |
 | --- | --- | --- |
 | Domain modules | Brewing states, recipe rules, confirmations | Pure domain ports and utilities |

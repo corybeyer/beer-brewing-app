@@ -1,0 +1,20 @@
+{
+  "name": "@brewery/design-system",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./icons": "./src/Icon.tsx",
+    "./styles.css": "./src/styles.css",
+    "./tokens.css": "./src/tokens/tokens.css"
+  },
+  "dependencies": {
+    "lucide-react": "1.70.0"
+  },
+  "peerDependencies": {
+    "react": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0"
+  }
+}

@@ -1,0 +1,3 @@
+.component-gallery { max-width: var(--layout-page-width); padding: var(--space-6); margin-inline: auto; display: grid; gap: var(--space-6); }
+.component-gallery__row { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.component-gallery output { display: block; }

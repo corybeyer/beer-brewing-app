@@ -8,7 +8,7 @@ Start here before planning or implementing a feature. This knowledge base combin
 2. [Current status](plan/status.md): what is implemented and what has actually been verified.
 3. [Roadmap](plan/roadmap.md): delivery order, acceptance criteria, and the next task.
 4. [Open decisions](plan/open-decisions.md): choices that must remain explicit.
-5. Read the relevant [screen specification](design/screens.md), [acceptance scenarios](requirements/acceptance-scenarios.md), [architecture](architecture/system-overview.md), and [decision records](decisions/README.md).
+5. Read the relevant [screen specification](design/screens.md), [acceptance scenarios](requirements/acceptance-scenarios.md), [architecture](architecture/system-overview.md), and [decision records](architecture/decisions/README.md).
 
 ## Documentation map
 
@@ -17,11 +17,13 @@ Start here before planning or implementing a feature. This knowledge base combin
 | [Requirements](requirements/README.md) | Product behavior, integrity rules, and acceptance scenarios |
 | [Architecture](architecture/system-overview.md) | Components, [dependency boundaries](architecture/dependency-rules.md), [target data model](architecture/data-model.md), and deployment topology |
 | [Backend foundation](architecture/backend-foundation.md) | PostgreSQL development stack, migrations, health contracts, and tests |
+| [Development](development/README.md) | Workspace setup, [package ownership](development/repository-layout.md), frontend gallery, and categorized tests |
 | [Design](design/screens.md) | Screen behavior, [design principles](design/design-principles.md), and [wireframe guidance](design/wireframes/README.md) |
-| [Decisions](decisions/README.md) | Architectural rationale and decision status |
+| [Development images](images/README.md) | Screenshots and visual guidance for development tasks |
+| [Decisions](architecture/decisions/README.md) | Architectural rationale and decision status |
 | [Plan](plan/roadmap.md) | Milestones, current status, and unresolved decisions |
 | [References](references/README.md) | Preserved source material and historical evidence |
-| [Contracts](../contracts/README.md) | Versioned machine-readable communication interfaces |
+| [Contracts](../packages/communications/contracts/README.md) | Versioned machine-readable communication interfaces |
 
 ## How to interpret status
 

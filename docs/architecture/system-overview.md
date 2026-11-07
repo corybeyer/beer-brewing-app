@@ -11,9 +11,9 @@ Knowledge-base links: [product scope](../requirements/product-scope.md), [target
 - Current application: Python standard-library /health smoke test, managed by Docker Compose. No brewery business features yet.
 
 ## Application components
-- Development backend: Python FastAPI bootstrap under `app/brewery/`, with separate liveness and schema readiness endpoints; production still uses root `app.py`.
-- Data: PostgreSQL 17 with SQLAlchemy, Psycopg, and Alembic, selected in [ADR-0003](../decisions/0003-postgresql-foundation.md). The development baseline creates revision tracking only; business tables are not implemented. See [setup and migration guidance](backend-foundation.md).
-- Frontend: React and TypeScript with shared design system and typed API client.
+- Development backend: Python FastAPI bootstrap under `apps/api/brewery_api/`, with separate liveness and schema readiness endpoints; production still uses root `app.py`.
+- Data: PostgreSQL 17 with SQLAlchemy, Psycopg, and Alembic, selected in [ADR-0003](decisions/0003-postgresql-foundation.md). The development baseline creates revision tracking only; business tables are not implemented. See [setup and migration guidance](backend-foundation.md).
+- Frontend: React/TypeScript application in `apps/web`, reusable UI in `packages/ui`, tokens/icons/global styling in `packages/design-system`, and transport contracts/client in `packages/communications`.
 - Telemetry: sensor adapters plus eventual MQTT broker, subject to hardware confirmation.
 - Internal orchestration: stage/timer/events, with manual brewer confirmation.
 - Design and integrations are separate; no sensor protocol logic in the domain.
@@ -33,4 +33,4 @@ flowchart LR
 ```
 
 ## Status
-Only the existing health service and CI/CD pathway are recorded as deployed. The PostgreSQL/backend foundation is for development and has not replaced production. This diagram remains the target business architecture; UI, brewing domain services, and sensors are not implemented.
+Only the existing health service and CI/CD pathway are recorded as deployed. The PostgreSQL/backend foundation is for development and has not replaced production. This diagram remains the target business architecture; the frontend is an isolated development preview, while brewing domain services and sensors are not implemented.

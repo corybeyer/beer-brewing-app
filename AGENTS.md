@@ -11,11 +11,13 @@ Build a local-only, advisory home-brewing companion for five-gallon all-grain ba
 5. Never commit secrets, keys, runtime databases, sensor credentials, or production configuration.
 6. Do not perform physical equipment control. The first release monitors, records, and advises. Stage changes and physical actions require brewer confirmation.
 7. Never represent missing, stale, or anomalous sensor measurements as trustworthy live readings.
+8. Before creating or updating every PR, run `python3 scripts/pre_pr.py`, then `python3 scripts/pre_pr.py --verify-report` after the last source edit. Report any missing PostgreSQL coverage; CI remains required. Do not bypass findings with ad hoc exclusions.
 
 ## Architecture boundaries
+- Use `apps/web` and `apps/api` for application composition; shared concerns belong in `packages/`. See `docs/development/repository-layout.md` and ADR-0005.
 - Application domain does not import API, UI, database drivers, or sensor protocols.
 - Adapters implement defined ports/interfaces; business rules do not bind to MQTT or a sensor vendor.
-- UI features consume shared design-system components and semantic tokens; avoid arbitrary colors and inline styles.
+- UI features consume `packages/ui` components and `packages/design-system` tokens/icons; feature CSS arranges screens only. Keep repeatable visual examples in `packages/ui/src/examples/`.
 - Communication interfaces must have versioned contracts and error/freshness semantics.
 - CI/CD and Tailscale deployment live outside runtime application logic.
 
@@ -30,3 +32,5 @@ Use focused skills in .agents/skills/ when applicable. They do not supersede arc
 
 ## Current status
 app.py and the existing Dockerfile are the working production smoke-test service. Do not replace them until the new runtime passes tests and a controlled deployment.
+
+The root `compose.yaml` is a development stack. Operational tooling lives in `infrastructure/`, maintenance/setup tools in `scripts/`, and versioned communication contracts in `packages/communications/contracts/`.

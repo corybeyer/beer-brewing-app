@@ -1,0 +1,9 @@
+/* Page arrangement only. Reusable presentation belongs in design-system/. */
+.library-layout { display: grid; grid-template-columns: minmax(0, 1fr) var(--layout-aside-width); gap: var(--space-6); align-items: start; }
+.journey { margin-top: var(--space-8); padding: var(--space-6) 0; }
+.journey__heading { margin-bottom: var(--space-6); }
+.journey__heading h2 { margin-top: var(--space-2); }
+.journey__steps { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-6); }
+@media (max-width: 48rem) {
+  .library-layout, .journey__steps { grid-template-columns: minmax(0, 1fr); }
+}

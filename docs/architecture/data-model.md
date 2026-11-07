@@ -399,7 +399,7 @@ erDiagram
 - Anchor, dependency, originating batch/tasting, and route endpoint references are included as fields; not every edge is drawn to keep the views readable.
 - Snapshots preserve targets, instructions, style classification/reference, source details, ingredient specifications, and equipment configuration.
 - Batch tables are authoritative for execution; published recipe versions are immutable.
-- Route graphics depict planned fluid paths; confirmed equipment states come from action events. HERMS is not selected.
+- Route graphics depict planned fluid paths; confirmed equipment states come from action events. The selected mash tun is an insulated cooler with no mash recirculation; omit HERMS/RIMS routes.
 - Temperature freshness, timers, beer age, ratings, and comparisons are derived from stored values/timestamps.
 - Successful alert acknowledgement is distinct from confirming its physical action.
 

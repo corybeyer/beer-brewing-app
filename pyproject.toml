@@ -18,6 +18,10 @@ dependencies = [
 [project.optional-dependencies]
 test = ["httpx>=0.28,<1"]
 
-[tool.setuptools.packages.find]
-where = ["app"]
-include = ["brewery*"]
+[tool.setuptools]
+packages = ["brewery_api", "brewery_database", "brewery_config"]
+
+[tool.setuptools.package-dir]
+brewery_api = "apps/api/brewery_api"
+brewery_database = "packages/database/src/brewery_database"
+brewery_config = "packages/config/src/brewery_config"

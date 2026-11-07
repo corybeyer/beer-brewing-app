@@ -4,7 +4,7 @@ Status: target requirements. These are not claims of implemented behavior or pas
 
 ## Enforcement strategy
 
-Use PostgreSQL foreign keys, uniqueness, NOT NULL, and CHECK constraints for local invariants, per [ADR-0003](../decisions/0003-postgresql-foundation.md). Use application validation inside transactions for cross-record rules, dependency graph checks, version publication, and state transitions. Database triggers may reinforce immutable history during implementation.
+Use PostgreSQL foreign keys, uniqueness, NOT NULL, and CHECK constraints for local invariants, per [ADR-0003](../architecture/decisions/0003-postgresql-foundation.md). Use application validation inside transactions for cross-record rules, dependency graph checks, version publication, and state transitions. Database triggers may reinforce immutable history during implementation.
 
 Atomic operations: publish a recipe, instantiate a batch, confirm an action and schedule dependent reminders, apply corrections, and change sensor assignment. Failed validation must leave no partial changes.
 
