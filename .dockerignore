@@ -1,8 +1,13 @@
 .git
 .github
-__pycache__
-*.pyc
+.venv
+**/__pycache__
+**/*.pyc
+**/*.egg-info
 .env
 .env.*
+*.db
+*.sqlite3
 tests
 README.md
+.secrets

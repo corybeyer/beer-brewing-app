@@ -24,6 +24,8 @@ This first commit is a deployment smoke-test foundation, **not the finished brew
 
 ## Local smoke test
 
+The new development backend uses PostgreSQL 17, SQLAlchemy, Alembic, and FastAPI. See [backend setup and tests](docs/architecture/backend-foundation.md) to run the isolated development stack on localhost:8081. The root service below remains the production smoke test.
+
 ```sh
 python3 -m unittest discover -s tests -v
 python3 app.py

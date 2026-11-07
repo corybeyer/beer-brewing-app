@@ -9,3 +9,7 @@ venv/
 .coverage
 *.sqlite3
 *.db
+*.egg-info/
+build/
+dist/
+.secrets/

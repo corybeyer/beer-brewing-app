@@ -16,6 +16,7 @@ Start here before planning or implementing a feature. This knowledge base combin
 | --- | --- |
 | [Requirements](requirements/README.md) | Product behavior, integrity rules, and acceptance scenarios |
 | [Architecture](architecture/system-overview.md) | Components, [dependency boundaries](architecture/dependency-rules.md), [target data model](architecture/data-model.md), and deployment topology |
+| [Backend foundation](architecture/backend-foundation.md) | PostgreSQL development stack, migrations, health contracts, and tests |
 | [Design](design/screens.md) | Screen behavior, [design principles](design/design-principles.md), and [wireframe guidance](design/wireframes/README.md) |
 | [Decisions](decisions/README.md) | Architectural rationale and decision status |
 | [Plan](plan/roadmap.md) | Milestones, current status, and unresolved decisions |

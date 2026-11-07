@@ -10,9 +10,9 @@ Knowledge-base links: [product scope](../requirements/product-scope.md), [target
 - Deployment: GitHub OIDC to Tailscale, tag:ci access to Pi port 22, brewdeploy SSH identity, privileged root-owned deploy script with health/rollback.
 - Current application: Python standard-library /health smoke test, managed by Docker Compose. No brewery business features yet.
 
-## Proposed application components
-- Backend: Python FastAPI modular monolith.
-- Data: SQLite initially, SQLAlchemy + Alembic with persisted database on SSD.
+## Application components
+- Development backend: Python FastAPI bootstrap under `app/brewery/`, with separate liveness and schema readiness endpoints; production still uses root `app.py`.
+- Data: PostgreSQL 17 with SQLAlchemy, Psycopg, and Alembic, selected in [ADR-0003](../decisions/0003-postgresql-foundation.md). The development baseline creates revision tracking only; business tables are not implemented. See [setup and migration guidance](backend-foundation.md).
 - Frontend: React and TypeScript with shared design system and typed API client.
 - Telemetry: sensor adapters plus eventual MQTT broker, subject to hardware confirmation.
 - Internal orchestration: stage/timer/events, with manual brewer confirmation.
@@ -33,4 +33,4 @@ flowchart LR
 ```
 
 ## Status
-Only the existing health service and CI/CD pathway are deployed. This diagram is a target runtime architecture, not a claim that database, UI, or sensor services have been implemented.
+Only the existing health service and CI/CD pathway are recorded as deployed. The PostgreSQL/backend foundation is for development and has not replaced production. This diagram remains the target business architecture; UI, brewing domain services, and sensors are not implemented.
