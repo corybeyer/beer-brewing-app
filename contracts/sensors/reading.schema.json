@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/corybeyer/beer-brewing-app/contracts/sensors/reading.schema.json",
+  "title": "SensorReadingV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "device_id", "measured_at", "received_at", "unit", "value", "quality"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "device_id": {"type": "string", "minLength": 1},
+    "measured_at": {"type": "string", "format": "date-time"},
+    "received_at": {"type": "string", "format": "date-time"},
+    "unit": {"enum": ["C", "F"]},
+    "value": {"type": ["number", "null"]},
+    "quality": {"enum": ["valid", "stale", "missing", "suspect", "offline"]}
+  }
+}
