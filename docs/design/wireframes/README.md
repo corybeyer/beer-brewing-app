@@ -13,7 +13,7 @@ Status: design references supplied in the conversation, not implemented screens 
 | Recipe Overview & Style | UI-05 | Named in the project reference; image not supplied here |
 | Batch Setup | UI-06 | Named in the project reference; image not supplied here |
 
-The four unique supplied images were visible in chat but were not exposed as downloadable/local files. Image binaries have not been committed. This inventory and [screen specifications](../screens.md) preserve their development guidance. When original image files are available, place them here using stable screen-ID filenames and add relative links; keep the two absent references marked absent until supplied. Do not substitute generated mockups and call them the originals.
+The four unique supplied images are now available locally in `docs/images/`; the [linked image inventory](../../images/README.md) maps their supplied filenames to screen IDs. UI-05 and UI-06 remain absent. These images and [screen specifications](../screens.md) preserve development guidance. Do not substitute generated mockups and call them the originals.
 
 ## Visual direction
 
@@ -21,7 +21,7 @@ Teal primary actions, restrained status colors, light surfaces, readable cards, 
 
 ## Known corrections and interpretation
 
-- The dashboard's HERMS coil is illustrative; the equipment route remains undecided.
+- The brewer has confirmed an insulated cooler mash tun with no mash recirculation. The dashboard's pot-shaped mash tun, HERMS coil/recirculation route, and instruction to check recirculation are outdated guidance; omit them from implementation.
 - The dashboard header and step strip disagree on step numbering. Derive both from actual batch steps.
 - The phone step list omits intermediate steps for illustration. The product must make every step accessible in order.
 - Demo temperatures, charts, dates, ratings, and recipe quantities are sample data, not live readings or validated brewing advice.

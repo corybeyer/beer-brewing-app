@@ -1,0 +1,26 @@
+{
+  "name": "brewery-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "workspaces": [
+    "apps/web",
+    "packages/ui",
+    "packages/design-system",
+    "packages/communications"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @brewery/web",
+    "build": "npm run build --workspace @brewery/web",
+    "test": "playwright test --config apps/web/playwright.config.ts"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@babel/parser": "8.1.0",
+    "@playwright/test": "1.65.0",
+    "postcss": "8.5.32"
+  }
+}

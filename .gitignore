@@ -13,3 +13,9 @@ venv/
 build/
 dist/
 .secrets/
+node_modules/
+tests/e2e/test-results/
+playwright-report/
+apps/web/test-results/
+apps/web/playwright-report/
+.validation/

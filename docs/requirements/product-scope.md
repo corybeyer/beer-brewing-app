@@ -6,7 +6,7 @@ Status: target requirements consolidated from the supplied design reference and 
 
 Build a locally hosted, advisory companion for five-gallon all-grain batches. The brewer uses a responsive browser on a phone, tablet, or computer on the home network. The repository's current host baseline is Raspberry Pi 5 with 16 GB RAM and SSD; the older reference's Pi 4 is historical.
 
-Equipment direction: HLT, mash tun, and boil kettle; outdoor propane; two burners; two pumps; manually operated heating, switches, valves, and hoses; immersion chilling. HERMS remains undecided. Do not derive a selected route from the coil shown in the dashboard mockup.
+Equipment direction: HLT, insulated cooler mash tun, and boil kettle; outdoor propane; two burners; two pumps; manually operated heating, switches, valves, and hoses; immersion chilling. The mash does not recirculate; HERMS and RIMS are outside the selected design. Sparging and transfer routes remain separate decisions. The dashboard mockup's mash pot, recirculation instructions, and coil are outdated guidance.
 
 The app monitors, records, and advises. Physical equipment control is outside the initial scope. Reaching a temperature or timer deadline never proves a physical action occurred.
 

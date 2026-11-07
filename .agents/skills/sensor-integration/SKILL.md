@@ -4,7 +4,7 @@ description: Add or change temperature and telemetry sources while preserving tr
 ---
 
 # Sensor integration
-1. Read contracts/sensors/ and relevant ADRs.
+1. Read packages/communications/contracts/sensors/ and relevant ADRs.
 2. Implement transport adapters behind the domain-facing sensor port.
 3. Preserve measured_at, received_at, device_id, units, and reading status.
 4. Deduplicate events; bound retries and handle offline behavior.

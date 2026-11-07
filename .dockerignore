@@ -8,6 +8,12 @@
 .env.*
 *.db
 *.sqlite3
+docs/images/*.png
 tests
 README.md
 .secrets
+**/node_modules
+**/dist
+**/test-results
+**/playwright-report
+.validation

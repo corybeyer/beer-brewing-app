@@ -1,0 +1,203 @@
+{
+  "version": 1,
+  "root_files": [
+    "AGENTS.md",
+    "README.md",
+    "app.py",
+    "Dockerfile",
+    "pyproject.toml",
+    "requirements.lock",
+    "package.json",
+    "package-lock.json",
+    "compose.yaml",
+    "alembic.ini",
+    ".nvmrc",
+    ".gitignore",
+    ".dockerignore",
+    ".env.example"
+  ],
+  "owners": {
+    "web": {
+      "root": "apps/web",
+      "uses": [
+        "ui",
+        "design-system",
+        "communications"
+      ],
+      "python": [],
+      "node": [
+        "react",
+        "react-dom"
+      ]
+    },
+    "api": {
+      "root": "apps/api",
+      "uses": [
+        "domain",
+        "validation",
+        "database",
+        "config"
+      ],
+      "python": [
+        "fastapi",
+        "pydantic"
+      ],
+      "node": []
+    },
+    "ui": {
+      "root": "packages/ui",
+      "uses": [
+        "design-system"
+      ],
+      "python": [],
+      "node": [
+        "react",
+        "react-dom"
+      ]
+    },
+    "design-system": {
+      "root": "packages/design-system",
+      "uses": [],
+      "python": [],
+      "node": [
+        "react",
+        "lucide-react"
+      ]
+    },
+    "domain": {
+      "root": "packages/domain",
+      "uses": [
+        "validation"
+      ],
+      "python": [],
+      "node": []
+    },
+    "database": {
+      "root": "packages/database",
+      "uses": [
+        "domain",
+        "validation",
+        "config"
+      ],
+      "python": [
+        "sqlalchemy",
+        "alembic",
+        "psycopg"
+      ],
+      "node": []
+    },
+    "integrations": {
+      "root": "packages/integrations",
+      "uses": [
+        "domain",
+        "validation",
+        "config",
+        "communications"
+      ],
+      "python": [],
+      "node": []
+    },
+    "communications": {
+      "root": "packages/communications",
+      "uses": [
+        "validation"
+      ],
+      "python": [],
+      "node": []
+    },
+    "config": {
+      "root": "packages/config",
+      "uses": [],
+      "python": [
+        "sqlalchemy"
+      ],
+      "node": []
+    },
+    "validation": {
+      "root": "packages/validation",
+      "uses": [],
+      "python": [],
+      "node": []
+    },
+    "tests": {
+      "root": "tests",
+      "uses": [
+        "*"
+      ],
+      "python": [
+        "*"
+      ],
+      "node": [
+        "*"
+      ]
+    },
+    "infrastructure": {
+      "root": "infrastructure",
+      "uses": [
+        "*"
+      ],
+      "python": [
+        "*"
+      ],
+      "node": [
+        "*"
+      ]
+    },
+    "scripts": {
+      "root": "scripts",
+      "uses": [
+        "*"
+      ],
+      "python": [
+        "*"
+      ],
+      "node": [
+        "*"
+      ]
+    },
+    "docs": {
+      "root": "docs",
+      "uses": [],
+      "python": [],
+      "node": []
+    },
+    "github": {
+      "root": ".github",
+      "uses": [],
+      "python": [],
+      "node": []
+    },
+    "agents": {
+      "root": ".agents",
+      "uses": [],
+      "python": [],
+      "node": []
+    }
+  },
+  "python_modules": {
+    "brewery_api": "api",
+    "brewery_database": "database",
+    "brewery_config": "config",
+    "brewery_domain": "domain",
+    "brewery_validation": "validation",
+    "brewery_integrations": "integrations",
+    "brewery_communications": "communications",
+    "infrastructure": "infrastructure",
+    "scripts": "scripts",
+    "tests": "tests"
+  },
+  "node_packages": {
+    "@brewery/web": "web",
+    "@brewery/ui": "ui",
+    "@brewery/design-system": "design-system",
+    "@brewery/communications": "communications"
+  },
+  "token_files": [
+    "packages/design-system/src/tokens/tokens.css"
+  ],
+  "breakpoints": [
+    "36rem",
+    "48rem"
+  ],
+  "exceptions": []
+}
