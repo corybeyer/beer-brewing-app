@@ -19,6 +19,8 @@ from brewery_domain.recipes import DraftConflict, DraftNotFound, InvalidDraft, R
 
 PREFIX = '/api/v1/recipe-drafts'
 MAX_BODY_BYTES = 32768
+# 100 rows, including fully JSON-escaped non-BMP IDs/names at field limits.
+MAX_INGREDIENT_BODY_BYTES = 512 * 1024
 
 
 class StrictModel(BaseModel):
@@ -144,6 +146,7 @@ class RecipeRequestBoundary:
             return await reject(403, 'forbidden', 'Open the companion using its local hostname or address.')
 
         if scope['method'] in ('POST', 'PATCH'):
+            body_limit = MAX_INGREDIENT_BODY_BYTES if path.endswith('/ingredients') else MAX_BODY_BYTES
             if headers.get('content-type', '').split(';')[0].lower() != 'application/json':
                 return await reject(415, 'unsupported_media_type', 'Recipe changes require JSON.')
             try:
@@ -152,7 +155,7 @@ class RecipeRequestBoundary:
                     raise ValueError
             except ValueError:
                 return await reject(400, 'invalid_request', 'Invalid request length.')
-            if length > MAX_BODY_BYTES:
+            if length > body_limit:
                 return await reject(413, 'request_too_large', 'Recipe request exceeds the supported size.')
             body = bytearray()
             while True:
@@ -160,7 +163,7 @@ class RecipeRequestBoundary:
                 if message['type'] == 'http.disconnect':
                     return
                 data = message.get('body', b'')
-                if len(body) + len(data) > MAX_BODY_BYTES:
+                if len(body) + len(data) > body_limit:
                     return await reject(413, 'request_too_large', 'Recipe request exceeds the supported size.')
                 body.extend(data)
                 if not message.get('more_body', False):
