@@ -25,3 +25,7 @@ Backups on the Pi's SSD support local rollback/operator recovery, not SSD-loss r
 ## Adoption evidence
 
 Use disposable-container tests to exercise real provisioning/migration, verified populated backups, candidate gating, HTTP health, retained data, and rollback. Installer tests must protect original files, secret preservation, private permissions, and refusal of unexpected host configuration. An administrator must explicitly install on the Pi; only then can the existing Actions command use the new deployment implementation. Record actual CI and host outcomes in current status.
+
+## Recipe-schema follow-up
+
+[Proposed ADR-0010](0010-recipe-rollout-and-snapshot-backups.md) extends the source policy to the explicit baseline/recipe revision pairs, compatible-image or retained-smoke recovery, exported-snapshot backup verification during writes, and an administrator-only updater for the installed operations. It does not accept arbitrary future migrations or alter the status of this record. The installed Pi script stays at its existing policy until that reviewed update is performed.

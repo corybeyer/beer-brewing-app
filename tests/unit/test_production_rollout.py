@@ -1,5 +1,6 @@
 """Deployment failure paths must retain data and restore application configuration."""
 import argparse
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
@@ -13,6 +14,10 @@ from infrastructure.deployment.production.rollout import Deployment, REPOSITORY
 
 
 class ProductionRolloutTests(unittest.TestCase):
+    @contextmanager
+    def snapshot(self):
+        yield Mock(sql=Mock(return_value='00000003-0000001B-1'))
+
     def test_failed_restore_never_publishes_backup_or_prunes_existing_sets(self):
         with TemporaryDirectory() as directory:
             root = Path(directory)
@@ -30,8 +35,9 @@ class ProductionRolloutTests(unittest.TestCase):
                 with patch.object(deployment, 'table_fingerprints', return_value=['fixture|1|digest']):
                     with patch.object(deployment, 'compose', side_effect=compose):
                         with patch.object(deployment, 'sql') as sql:
-                            with self.assertRaisesRegex(RuntimeError, 'restore failure'):
-                                deployment.backup()
+                            with patch.object(deployment, 'snapshot', self.snapshot):
+                                with self.assertRaisesRegex(RuntimeError, 'restore failure'):
+                                    deployment.backup()
             self.assertEqual(list(deployment.backups.iterdir()), [retained])
             self.assertTrue(sql.call_args_list[-1].args[0].startswith('DROP DATABASE brew_verify_'))
             self.assertTrue(all('DROP DATABASE brewery' not in call.args[0] for call in sql.call_args_list))
@@ -44,8 +50,9 @@ class ProductionRolloutTests(unittest.TestCase):
                 with patch.object(deployment, 'table_fingerprints', side_effect=[['fixture|1|a'], ['fixture|1|b']]):
                     with patch.object(deployment, 'compose', return_value=b'dump'):
                         with patch.object(deployment, 'sql'):
-                            with self.assertRaisesRegex(ValueError, 'contents'):
-                                deployment.backup()
+                            with patch.object(deployment, 'snapshot', self.snapshot):
+                                with self.assertRaisesRegex(ValueError, 'contents'):
+                                    deployment.backup()
             self.assertEqual(list(deployment.backups.iterdir()), [])
 
     def test_commit_validation_rejects_arguments_before_docker_access(self):
@@ -55,6 +62,16 @@ class ProductionRolloutTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     deployment.image(commit, 'app')
             command.assert_not_called()
+
+    def test_invalid_exported_snapshot_is_rejected_before_dump(self):
+        with TemporaryDirectory() as directory:
+            deployment = Deployment(Path(directory), Path(directory) / 'backups')
+            with patch.object(deployment, 'compose') as compose:
+                with patch.object(deployment, 'snapshot') as snapshot:
+                    snapshot.return_value.__enter__.return_value.sql.return_value = 'invalid snapshot'
+                    with self.assertRaisesRegex(ValueError, 'snapshot identifier'):
+                        deployment.backup()
+            compose.assert_not_called()
 
     def test_image_requires_matching_commit_label_and_registry_digest(self):
         deployment = Deployment('/unused', '/unused')
@@ -118,7 +135,7 @@ class ProductionRolloutTests(unittest.TestCase):
             deployment = Deployment(root, root / 'backups')
             with patch.object(deployment, 'command', return_value=b'0002_future'):
                 with patch.object(deployment, 'compose') as compose:
-                    with self.assertRaisesRegex(ValueError, 'baseline'):
+                    with self.assertRaisesRegex(ValueError, 'reviewed schema pair'):
                         deployment.deploy_images('app', 'operator')
             self.assertEqual((root / '.env').read_text(), 'prior')
             compose.assert_called_once_with('rm', '-s', '-f', 'candidate')

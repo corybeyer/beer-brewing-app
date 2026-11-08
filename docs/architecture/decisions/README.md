@@ -10,6 +10,8 @@
 | [ADR-0006](0006-pre-pr-validation.md) | Accepted | Repository policy and required pre-PR validation command |
 | [ADR-0007](0007-production-serving-candidate.md) | Proposed | Single-origin frontend/API serving candidate |
 | [ADR-0008](0008-production-rollout-and-baseline-backups.md) | Proposed | Staged production adoption and verified baseline backups |
+| [ADR-0009](0009-recipe-draft-persistence.md) | Proposed | Transactional draft schema, storage port, and guarded downgrade |
+| [ADR-0010](0010-recipe-rollout-and-snapshot-backups.md) | Proposed | Reviewed schema transitions, snapshot backups, and operations upgrade |
 
 See [open decisions](../../plan/open-decisions.md) for outstanding choices. Preserve existing statuses until a decision is explicitly accepted; the prototype's implementation is not automatic approval of its architecture.
 

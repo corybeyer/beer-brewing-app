@@ -8,10 +8,13 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 import psycopg
 from psycopg import sql
-from sqlalchemy import text
+from sqlalchemy import create_engine, text
 from sqlalchemy.exc import ProgrammingError
 
 from brewery_api.api import create_app
+from brewery_database.recipes import PostgresRecipeDraftStore
+from brewery_domain.recipe_plan import Ingredient, RecipePlan, Step
+from brewery_domain.recipes import RecipeDraft
 from infrastructure.deployment.database.manage import migrate, provision
 from tests.fixtures.postgres_support import PostgreSQLTestCase, ROOT
 
@@ -101,6 +104,23 @@ class DatabaseRoleTests(PostgreSQLTestCase):
                 app.execute("DELETE FROM fixture")
                 with self.assertRaises(psycopg.errors.InsufficientPrivilege):
                     app.execute("DROP TABLE fixture")
+
+    def test_runtime_can_store_drafts_but_cannot_delete_versions(self):
+        self.migrate_as_owner()
+        engine = create_engine(self.url.set(username=self.application, password=self.application_password))
+        self.addCleanup(engine.dispose)
+        store = PostgresRecipeDraftStore(engine)
+        draft = RecipeDraft('recipe', 1, RecipePlan('version', (Ingredient('yeast', 'version'),),
+                                                  (Step('pitch', 'version'),)))
+        self.assertEqual(store.create(draft).draft, draft)
+        self.assertEqual(store.save(draft, 1).edit_revision, 2)
+        self.assertEqual(store.load('version').draft, draft)
+        with self.connect_as(self.application, self.application_password) as app:
+            for statement in ('DELETE FROM recipe_version', 'DELETE FROM recipe',
+                              'DROP TABLE recipe_ingredient', 'UPDATE alembic_version SET version_num = \'bad\''):
+                with self.subTest(statement=statement):
+                    with self.assertRaises(psycopg.errors.InsufficientPrivilege):
+                        app.execute(statement)
 
     def test_reprovision_preserves_passwords_and_rejects_privileged_existing_roles(self):
         with self.connect_as(self.url.username, self.url.password) as admin:

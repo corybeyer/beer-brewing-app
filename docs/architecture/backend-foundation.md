@@ -40,7 +40,7 @@ Provision roles first using the [operator commands](../../infrastructure/deploym
 .venv/bin/python -m uvicorn brewery_api.api:create_app --factory --host 127.0.0.1 --port 8081
 ```
 
-Python packages `brewery_api`, `brewery_database`, and `brewery_config` have explicit source mappings in `pyproject.toml`; root `app.py` remains the independently runnable production smoke service. Migrations remain repository-owned under `packages/database/migrations/` and are included in the development image.
+Python packages `brewery_api`, `brewery_database`, `brewery_config`, and `brewery_domain` have explicit source mappings in `pyproject.toml`; root `app.py` remains the independently runnable production smoke service. Migrations remain repository-owned under `packages/database/migrations/` and are included in the development image.
 
 ## Health and API contract
 
@@ -48,7 +48,7 @@ Python packages `brewery_api`, `brewery_database`, and `brewery_config` have exp
 - `GET /api/v1/readiness`: HTTP 200 `{"status":"ready"}` only when PostgreSQL responds with exactly the expected Alembic revision; otherwise HTTP 503 `{"status":"unavailable"}`. Never includes database error text or credentials. Connection, pool, and statement waits are bounded.
 - `GET /api/v1/openapi.json`: generated version 1 contract, including the documented 503 response. Interactive documentation is at `/api/v1/docs`.
 
-API startup requires valid configuration but does not connect eagerly, run migrations, or create tables. The initial `0001_baseline` migration establishes revision tracking without business tables. Future feature migrations must update the readiness revision and test upgrade from populated prior schemas. Schema equality is a version check, not a full audit of database permissions or schema corruption.
+API startup requires valid configuration but does not connect eagerly, run migrations, or create tables. The initial `0001_baseline` migration establishes revision tracking without business tables. The development head is now `0002_recipe_drafts`, adding [draft recipe storage](recipe-draft-storage.md); production remains on baseline until rollout compatibility is reviewed. Feature migrations must update the readiness revision and test upgrade from populated prior schemas. Schema equality is a version check, not a full audit of database permissions or schema corruption.
 
 ## Tests
 
@@ -56,12 +56,12 @@ API startup requires valid configuration but does not connect eagerly, run migra
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-For PostgreSQL integration tests, set `TEST_DATABASE_URL` to a disposable PostgreSQL instance with administrative permission to create/drop databases and roles. Tests create uniquely named databases and roles and clean them up; they never reset the supplied database. Use TCP with SCRAM authentication to exercise the wrong-password test; that check is explicitly skipped for Unix sockets. Without the setting, integration classes are explicitly skipped. CI supplies PostgreSQL with TCP/SCRAM and runs these tests.
+For PostgreSQL integration tests, set `TEST_DATABASE_URL` to a disposable PostgreSQL instance with administrative permission to create/drop databases and roles. Tests create uniquely named databases and roles and clean them up; they never reset the supplied database. Use TCP with SCRAM authentication to exercise the wrong-password test; that check is explicitly skipped for Unix sockets. Snapshot backup integration tests also need PostgreSQL 17 client tools: set `POSTGRES_TEST_BIN` to their binary directory, or use clients already on PATH. CI supplies `TEST_POSTGRES_CONTAINER` from its disposable PostgreSQL service and runs those clients inside that service. A supplied test database with missing/mismatched tools fails rather than silently skipping snapshot verification. Without the database setting, integration classes are explicitly skipped. CI supplies PostgreSQL with TCP/SCRAM and runs these tests.
 
-Tests cover configuration rejection, secret generation/non-overwrite behavior, health during database failure, sanitized readiness failures, missing/unexpected schema versions, explicit/repeated migrations, migration/grant atomicity, and preservation of a populated fixture across baseline upgrade/downgrade/upgrade. Role tests verify authenticated migration/readiness, denied runtime DDL/metadata writes, explicit business-table grants, password rejection, and safe repeat provisioning. They do not validate business-table migrations or AC-14 restoration.
+Tests cover configuration rejection, secret generation/non-overwrite behavior, health during database failure, sanitized readiness failures, missing/unexpected schema versions, explicit/repeated migrations, migration/grant atomicity, and preservation of a populated fixture across baseline upgrade/downgrade/upgrade. Role tests verify authenticated migration/readiness, denied runtime DDL/metadata writes, explicit business-table grants, password rejection, and safe repeat provisioning. The recipe integration suite separately validates `0002_recipe_drafts`, including populated-baseline upgrades, relational constraints, atomic saves, concurrency, and guarded downgrade. These suites do not establish AC-14 restoration.
 
 ## Migration and deployment safety
 
 Before future production adoption, verify a logical backup/restore, choose backup location and retention (D-06), provision the separate roles and host-held secret mounts, and perform a controlled ARM64 deployment. Run migrations as a single explicit operation before starting the new application. Never run destructive downgrades automatically during application rollback.
 
-The baseline can be downgraded with `alembic downgrade base`; this removes revision state and leaves unrelated tables intact. Readiness then returns 503 until upgraded. Later migrations must document compatibility, retained data, and reversibility individually. A PostgreSQL major upgrade requires an explicit upgrade/restore procedure; changing the image tag alone is not sufficient.
+The original baseline can be downgraded with `alembic downgrade base`; this removes revision state and leaves unrelated tables intact. From the recipe head, downgrade requires empty recipe tables and locks out concurrent writers; populated draft downgrade fails without data loss. Readiness then returns 503 until upgraded. Later migrations must document compatibility, retained data, and reversibility individually. A PostgreSQL major upgrade requires an explicit upgrade/restore procedure; changing the image tag alone is not sufficient.

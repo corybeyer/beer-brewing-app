@@ -1,6 +1,6 @@
 # UI/API production rollout
 
-M1/UI-04 operations under [proposed ADR-0008](../../../docs/architecture/decisions/0008-production-rollout-and-baseline-backups.md) and the tested [ADR-0007 candidate](../../../docs/architecture/decisions/0007-production-serving-candidate.md). This is an administrator installation, followed by automatic event-driven releases. No physical equipment control or business schema is introduced.
+M1/UI-04 operations under [proposed ADR-0008](../../../docs/architecture/decisions/0008-production-rollout-and-baseline-backups.md) and the tested [ADR-0007 candidate](../../../docs/architecture/decisions/0007-production-serving-candidate.md). This is an administrator installation, followed by automatic event-driven releases. The recipe follow-up introduces only the reviewed draft schema under [proposed ADR-0010](../../../docs/architecture/decisions/0010-recipe-rollout-and-snapshot-backups.md); no physical equipment control is introduced.
 
 ## Before installation
 
@@ -20,11 +20,27 @@ The installer refuses an unexpected host topology, writable/unowned legacy files
 
 The reviewed Compose and standard-library deployer are installed privately under `/opt/beer-brewing-app/runtime`. Three independent password files are generated there with a private parent and read-only per-service mounts. The API receives only its application credential. No production credentials enter GitHub or source control. The new `/usr/local/sbin/brewery-deploy` keeps the existing SHA-only Actions/SSH contract and uses isolated Python execution. No sudoers, SSH, Tailscale, or public routing changes are made.
 
+## Upgrading installed operations before the recipe release
+
+The already installed baseline deployer rejects recipe images. After the PR's full CI passes and the exact source commit is reviewed, check out that commit in a **clean** repository and run from its root:
+
+```sh
+sudo python3 infrastructure/deployment/production/upgrade.py --commit FULL_REVIEWED_COMMIT_SHA
+```
+
+This operation installs deployment/backup code only; it does not run migrations, pull images, restart containers, change credentials, or modify the timer. It requires the exact reviewed clean commit, private owned installed files, unchanged Compose/launchers, intact legacy files, and either the known baseline operations hash or the exact current script. It rejects unrelated administrator changes. The existing deployment/backup lock excludes an active operation. The previous script is retained privately in `runtime/operations-history`; `runtime/operations.json` records the source commit and installed hash. Receipt-write failure restores the previous script; re-running the same reviewed update is safe. Do not replace root files manually or relax a failed preflight.
+
+Perform this update **before merging** the recipe change. Then normal successful main CI/publication invokes the same SHA-only deploy command automatically. Do not merge/deploy concurrently with the administrator update. If publication occurred first, keep production on its baseline image and perform the reviewed updater before retrying the validated deployment. Do not widen the baseline script's gate by hand. This account still requires terminal sudo authentication for the root operation.
+
+A fresh installation uses the current installer and current policy directly. The earlier `install.py` resume path intentionally refuses source differences in an already staged runtime; use `upgrade.py` for the reviewed installed-operations update.
+
 ## Startup and failure behavior
 
-The deployment serializes with backups, permits only the explicitly reviewed `0001_baseline` schema, starts private PostgreSQL 17 on the persistent `brewery-production-postgres` volume, provisions roles, creates a verified pre-migration backup, and runs the explicit migrator. It then checks Docker health, `/health`, `/api/v1/readiness`, and `/` on a temporary loopback candidate before switching service `brewery` on port 8080.
+The deployment serializes with backups, permits only matching application/operator pairs for `0001_baseline` and `0002_recipe_drafts`, starts private PostgreSQL 17 on the persistent `brewery-production-postgres` volume, provisions roles, creates a verified pre-migration backup, and runs the explicit migrator. It then checks Docker health, `/health`, `/api/v1/readiness`, and `/` on a temporary loopback candidate before switching service `brewery` on port 8080.
 
-Failed candidates do not replace production. If the production switch fails, the prior application configuration/image is restored; on initial adoption it restores the legacy service. PostgreSQL and its volume are retained. No automatic schema downgrade or live database restore occurs. Future migrations require an explicit compatibility-policy update before this deployer will accept them. Preserve the root legacy image until controlled adoption passes.
+Baseline accepts empty/baseline databases; recipe accepts empty/baseline/recipe databases. Reverse recipe-to-baseline migration, unknown revisions, and mismatched pairs are rejected. The post-migration revision must match the application contract.
+
+If a candidate or production switch fails, the prior UI/API is restored only if its declared revision matches the resulting database. A baseline API is incompatible after the recipe migration: in that case, or if the migration result cannot be determined, recovery uses the retained health-only smoke service. Schema adoption can briefly make the old API unavailable before cutover. A failed adoption may leave the smoke service running until a corrected recipe release succeeds. PostgreSQL and its volume are retained. No automatic schema downgrade or live database restore occurs. Future migrations require an explicit compatibility-policy update before this deployer will accept them. Preserve the root legacy image until controlled adoption passes.
 
 On success, open `http://appHomebrew:8080/` (or the Pi's existing LAN address). `/health` remains liveness; `/api/v1/readiness` verifies the schema/database. The UI remains the current recipe preview with disabled recipe operations. Existing port exposure is preserved; do not add public inbound access. D-07 authentication/concurrent-use decisions remain separate.
 
@@ -32,9 +48,9 @@ If initial rollout or timer setup fails, retain the failure output without copyi
 
 ## Backups and recovery
 
-`brewery-backup.timer` runs daily, with persistent catch-up and up to 15 minutes of jitter. Every deployment also takes a backup. Sets under `/var/backups/beer-brewing-app` are root-private and contain `database.dump`, private credential copies, and revision/image metadata. Each dump is restored into a generated `brew_verify_*` database; revision and deterministic table-content fingerprints must match before publication. Only that scratch database is dropped. Failed verification never prunes prior sets.
+`brewery-backup.timer` runs daily, with persistent catch-up and up to 15 minutes of jitter. Every deployment also takes a backup. Sets under `/var/backups/beer-brewing-app` are root-private and contain `database.dump`, private credential copies, and revision/image metadata. A read-only REPEATABLE READ psql transaction exports a snapshot; source revision and deterministic table-content fingerprints are read in that transaction, and `pg_dump --snapshot` finishes before it closes. The dump is restored into a generated `brew_verify_*` database and compared with those captured values before publication. Writes committed after the snapshot remain live but do not invalidate verification. Fingerprint formatting uses UTC and fixed numeric/date formatting. Snapshot sessions are bounded and closed on failure; no failed verification prunes prior sets. Only that scratch database is dropped. Failed verification never prunes prior sets.
 
-Keep the newest seven verified sets; frequent deployments can shorten their calendar coverage. This is a local SSD policy, not protection against SSD loss. Off-device storage, encryption/transport, long-term retention, and whole-host recovery remain D-06/M4 work. The current read-only foundation permits deterministic source/restore comparisons; business write APIs must introduce consistent-snapshot semantics before this comparison is reused under concurrent writes. AC-14 is not marked complete.
+Keep the newest seven verified sets; frequent deployments can shorten their calendar coverage. This is a local SSD policy, not protection against SSD loss. Off-device storage, encryption/transport, long-term retention, and whole-host recovery remain D-06/M4 work. The snapshot implementation covers the current relational recipe tables under concurrent writes. It does not independently fingerprint roles, sequence counters, large objects, or host files; future capabilities must extend coverage when they introduce those data types. AC-14 is not marked complete.
 
 Manual backup:
 
@@ -60,4 +76,4 @@ With Docker access, from the repository root:
 python3 -m scripts.development.check_production_rollout
 ```
 
-This uses unique project/volume/image names, temporary synthetic credentials, and a random loopback port. Cleanup removes only those test resources. It never runs the root installer or reads production `.env`/password files. Local native PostgreSQL dump/restore tests and mocked failure tests do not replace this Docker run or the actual Pi trial.
+This uses unique project/volume/image names, temporary synthetic credentials, and a random loopback port. Cleanup removes only those test resources. It never runs the root installer or reads production `.env`/password files. The expanded Docker check starts a baseline contract fixture, attempts a broken recipe candidate after migration, verifies health-only recovery, adopts the recipe API, restores a populated draft backup, rejects a reverse transition, and re-adopts with retained data. Fixtures reproduce baseline readiness/migration behavior; they are not claims about a historical published image. Local native PostgreSQL tests and mocked failure tests do not replace this Docker run or the actual Pi trial.

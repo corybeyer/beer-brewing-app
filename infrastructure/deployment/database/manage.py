@@ -58,6 +58,7 @@ def migrate(url, application: str, config_path: str = "alembic.ini") -> None:
         with engine.begin() as connection:
             config = Config(config_path)
             config.attributes["connection"] = connection
+            config.attributes["application_role"] = application
             command.upgrade(config, "head")
             role = connection.dialect.identifier_preparer.quote_identifier(application)
             connection.exec_driver_sql(f"REVOKE ALL ON TABLE public.alembic_version FROM {role}")

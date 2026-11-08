@@ -4,6 +4,7 @@ WORKDIR /srv/brewery
 COPY requirements.lock pyproject.toml alembic.ini ./
 COPY apps/api/ ./apps/api/
 COPY packages/config/ ./packages/config/
+COPY packages/domain/src/ ./packages/domain/src/
 COPY packages/database/ ./packages/database/
 COPY infrastructure/deployment/database/ ./infrastructure/deployment/database/
 RUN python -m pip install --no-cache-dir -r requirements.lock \
