@@ -173,3 +173,8 @@ Focused real PostgreSQL HTTP/contract tests and ingredient browser scenarios pas
 ## Ingredient request-budget review correction
 
 PR #13 review found that 100 permitted rows could exceed the original shared 32 KiB request cap. Ingredient writes now have a bounded 512 KiB cap, sized for maximum fields even with fully JSON-escaped supplementary Unicode. Creation/overview limits and origin/media guards remain unchanged. A real PostgreSQL regression verifies maximum-row round trips, inclusive boundary acceptance, and declared/streamed oversized rejection without changes to saved data. Full source-bound checks and current PR CI remain required.
+
+
+## Sourced conversion planning
+
+The brewer-supplied calculator and substitution references are recorded in the [extract conversion plan](extract-conversion.md), with attributed equations, differing potential assumptions, exact worked examples, delivery stages, and CV-01–CV-12 checks. The agreed flow is closest match first, optional flavor variations in the same picker, preview, then explicit application while retaining the original. C1 now implements pure exact conversion with explicit potential/recovery/provenance, matching reference points, mass-unit normalization, and immutable versioned results. Sixteen focused unit checks passed for source examples, inverse conversions, units, precision, and invalid/resource-bounded inputs. The source-bound full pre-PR report records final checks; no conversion catalogue, schema, API, or picker is implemented. PR #13 merged as `1a92b533109c3044ad63cb8f52fa161b52593f7f` after PR CI #29. PR #15 carries the separately validated ingredient request-budget correction. No current Pi deployment is inferred from those merge/CI facts.

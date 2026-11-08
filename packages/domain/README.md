@@ -3,3 +3,5 @@
 Owns brewing business rules, states, and abstract ports. It must not import web/API frameworks, database drivers, UI packages, sensor protocols, or infrastructure.
 
 `brewery_domain.recipe_plan` implements the first M2 structural recipe rules: version-local links, combined dependency/anchor cycle detection, and exact same-unit portion totals. See the [validation specification](../../docs/requirements/recipe-plan-validation.md) for its typed interface and limits. `brewery_domain.recipes` defines the draft storage protocol, metadata values, validation, and conflict exceptions. The database package supplies its PostgreSQL adapter. No publication transition or brewing endpoint is implemented yet.
+
+`brewery_domain.extract_conversion` implements the first pure conversion core: explicit PPG/recovery/provenance at one comparison point, exact g/kg/oz/lb arithmetic, and immutable results retaining calculation version and assumptions. It supplies no default product catalogue, recipe mutation, HTTP endpoint, or flavor recommendation. See the [sourced conversion plan](../../docs/plan/extract-conversion.md#c1-domain-interface-and-current-evidence).
