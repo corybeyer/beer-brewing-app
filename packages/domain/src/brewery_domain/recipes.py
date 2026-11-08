@@ -3,7 +3,7 @@ from dataclasses import dataclass, replace
 from typing import Protocol
 from uuid import NAMESPACE_URL, UUID, uuid5
 
-from .recipe_plan import PlanIssue, RecipePlan, validate_plan
+from .recipe_plan import Ingredient, PlanIssue, RecipePlan, validate_plan
 
 
 @dataclass(frozen=True)
@@ -104,3 +104,15 @@ class RecipeDraftService:
             raise DraftNotFound('The recipe draft does not exist.')
         proposed = replace(current.draft, name=name, description=description)
         return overview(self.store.save(proposed, expected_revision))
+
+    def load_ingredients(self, version_id: str) -> StoredDraft:
+        stored = self.store.load(version_id)
+        if stored is None:
+            raise DraftNotFound('The recipe draft does not exist.')
+        return stored
+
+    def update_ingredients(self, version_id: str, expected_revision: int,
+                           ingredients: tuple[Ingredient, ...]) -> StoredDraft:
+        current = self.load_ingredients(version_id)
+        plan = replace(current.draft.plan, ingredients=ingredients)
+        return self.store.save(replace(current.draft, plan=plan), expected_revision)

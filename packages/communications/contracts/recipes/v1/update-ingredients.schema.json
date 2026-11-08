@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "IngredientV1": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Name"
+        },
+        "category": {
+          "anyOf": [
+            {
+              "enum": [
+                "grain",
+                "hops",
+                "yeast",
+                "other"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Category"
+        },
+        "quantity": {
+          "anyOf": [
+            {
+              "pattern": "^(0|[1-9][0-9]{0,11})(\\.[0-9]{1,12})?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Quantity"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "enum": [
+                "g",
+                "kg",
+                "oz",
+                "lb",
+                "mL",
+                "L",
+                "US_fl_oz",
+                "US_gal",
+                "count",
+                "packet"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Unit"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "category",
+        "quantity",
+        "unit"
+      ],
+      "title": "IngredientV1",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "expected_revision": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Expected Revision",
+      "type": "integer"
+    },
+    "ingredients": {
+      "items": {
+        "$ref": "#/$defs/IngredientV1"
+      },
+      "maxItems": 100,
+      "title": "Ingredients",
+      "type": "array"
+    }
+  },
+  "required": [
+    "expected_revision",
+    "ingredients"
+  ],
+  "title": "UpdateIngredientsV1",
+  "type": "object"
+}

@@ -43,7 +43,15 @@ test('manual overview persists through the real API and outage is explicit', asy
   await page.getByRole('textbox', { name: 'Description', exact: true }).fill('Disposable runtime verification only.');
   await page.getByRole('button', { name: 'Save overview', exact: true }).click();
   await expect(page.getByText('Draft overview saved.', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Add ingredient', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Ingredient 1 name', exact: true }).fill('Disposable base malt');
+  await page.getByRole('textbox', { name: 'Ingredient 1 quantity', exact: true }).fill('4.123456789012');
+  await page.getByRole('combobox', { name: 'Ingredient 1 category', exact: true }).selectOption('grain');
+  await page.getByRole('combobox', { name: 'Ingredient 1 unit', exact: true }).selectOption('kg');
+  await page.getByRole('button', { name: 'Save ingredients', exact: true }).click();
+  await expect(page.getByText('Ingredients saved.', { exact: true })).toBeVisible();
   await page.reload(); await page.getByRole('button', { name: `Open ${name}`, exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Ingredient 1 quantity', exact: true })).toHaveValue('4.123456789012');
   await expect(page.getByRole('textbox', { name: 'Description', exact: true })).toHaveValue('Disposable runtime verification only.');
 });
 

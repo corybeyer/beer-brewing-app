@@ -19,7 +19,7 @@ NULL quantities/units are allowed in incomplete drafts. Supplied numeric quantit
 
 ## Port and transaction behavior
 
-The store also lists bounded overview summaries in creation/ID order without loading every child record. `RecipeDraftService` coordinates idempotent creation and metadata-only updates. `brewery_domain.recipes` defines immutable `RecipeDraft(recipe_id, version_number, plan, name, description)` and `StoredDraft(draft, edit_revision)`, a `RecipeDraftStore` protocol, and domain exceptions. `PostgresRecipeDraftStore` in `brewery_database.recipes` implements:
+The store also lists bounded overview summaries in creation/ID order without loading every child record. `RecipeDraftService` coordinates idempotent creation, metadata-only updates, and ingredient-only replacement. Ingredient replacement retains every step, dependency, and addition and validates the complete resulting plan through the existing transactional save. Overview and ingredient writes share one edit revision; no schema change is introduced. `brewery_domain.recipes` defines immutable `RecipeDraft(recipe_id, version_number, plan, name, description)` and `StoredDraft(draft, edit_revision)`, a `RecipeDraftStore` protocol, and domain exceptions. `PostgresRecipeDraftStore` in `brewery_database.recipes` implements:
 
 - `create(draft)`: validate the complete proposed draft inside a transaction, insert a recipe identity if absent, and create the numbered version and all children atomically. Duplicate version ID or recipe/version number raises `DraftConflict`. Failed creates leave no orphan recipe identity.
 - `load(version_id)`: return `StoredDraft` or `None`. Hold a shared lock on the version row while reading children, so a concurrent replacement cannot return mixed revisions.

@@ -29,9 +29,9 @@
 .search-field:has(input:disabled), .select-field:has(select:disabled) { color: var(--color-disabled-text); }
 .search-field:has(input[aria-invalid='true']) { border-color: var(--color-danger); }
 .field-error { color: var(--color-danger); font-size: var(--font-size-small); }
-.form-field { display: grid; gap: var(--space-2); }
+.form-field { min-width: 0; display: grid; gap: var(--space-2); }
 .form-field label { font-weight: var(--font-weight-medium); font-size: var(--font-size-small); }
-.form-field input, .form-field textarea { width: 100%; min-height: var(--size-touch); padding: var(--space-3); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-background); color: var(--color-text); }
+.form-field input, .form-field textarea { min-width: 0; width: 100%; min-height: var(--size-touch); padding: var(--space-3); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-background); color: var(--color-text); }
 .form-field textarea { resize: vertical; }
 .form-field :disabled { color: var(--color-disabled-text); background: var(--color-disabled-background); }
 .form-field [aria-invalid='true'] { border-color: var(--color-danger); }

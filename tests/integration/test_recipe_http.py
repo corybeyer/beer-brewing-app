@@ -18,7 +18,7 @@ from tests.fixtures.postgres_support import PostgreSQLTestCase
 PATH = '/api/v1/recipe-drafts'
 
 
-class RecipeHTTPTests(PostgreSQLTestCase):
+class RecipeHTTPTestCase(PostgreSQLTestCase):
     def setUp(self):
         super().setUp()
         command.upgrade(self.config, 'head')
@@ -29,6 +29,8 @@ class RecipeHTTPTests(PostgreSQLTestCase):
     def create(self, key=None):
         return self.client.post(PATH, json={'creation_id': key or str(uuid4())})
 
+
+class RecipeHTTPTests(RecipeHTTPTestCase):
     def test_idempotent_create_returns_current_draft_after_retry(self):
         key = str(uuid4())
         first = self.create(key)
@@ -140,7 +142,9 @@ class RecipeHTTPTests(PostgreSQLTestCase):
         unavailable = self.url.set(database='missing_' + uuid4().hex)
         with patch.dict('os.environ', {'DATABASE_URL': unavailable.render_as_string(hide_password=False)}):
             with TestClient(create_app(), base_url='http://localhost') as client:
-                for response in (client.get(PATH), client.post(PATH, json={'creation_id': str(uuid4())})):
+                for response in (client.get(PATH), client.post(PATH, json={'creation_id': str(uuid4())}),
+                                 client.get(f'{PATH}/missing/ingredients'),
+                                 client.patch(f'{PATH}/missing/ingredients', json={'expected_revision': 1, 'ingredients': []})):
                     self.assertEqual(response.status_code, 503)
                     self.assertEqual(response.json()['error']['code'], 'unavailable')
                     self.assertNotIn(self.url.username, response.text)
