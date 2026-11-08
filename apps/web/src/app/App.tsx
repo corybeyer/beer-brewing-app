@@ -19,7 +19,7 @@ function Connection({ state, retry }: { state: ServiceState; retry: () => void }
     <div className="connection__message" role="status">
       <Icon name={ready ? 'check' : checking ? 'refresh' : 'offline'} />
       <div><strong>{ready ? 'Brewing service ready' : checking ? 'Checking brewing service…' : 'Brewing service unavailable'}</strong>
-        {!ready && <p>{checking ? 'Waiting for a response from your home brewery.' : 'The service could not be reached or is not ready. You can still explore this preview.'}</p>}
+        {!ready && <p>{checking ? 'Waiting for a response from your home brewery.' : 'The service could not be reached or is not ready. Your recipe edits stay here while you retry.'}</p>}
       </div>
     </div>
     <Button variant="secondary" busy={checking} onClick={retry} aria-label={checking ? 'Checking connection' : 'Check connection again'}>
@@ -31,7 +31,7 @@ function Connection({ state, retry }: { state: ServiceState; retry: () => void }
 function Home() {
   return <>
     <PageHeading eyebrow="Your home brewery" title="More good brewing ahead." description="A little preparation, a clear brew day, and room to learn from every batch." />
-    <Card className="content-card"><Badge tone="positive">An early look</Badge><h2>Start with the recipe.</h2><p className="muted">Explore the recipe library preview. Recipe saving and guided brew days will be added in future updates.</p><a href="#/recipes" className="text-link">Open recipe library<Icon name="arrow" /></a></Card>
+    <Card className="content-card"><Badge tone="positive">Start a draft</Badge><h2>Start with the recipe.</h2><p className="muted">Create a recipe draft and keep its name and description together. Ingredients and guided brew days will follow.</p><a href="#/recipes" className="text-link">Open recipe library<Icon name="arrow" /></a></Card>
   </>;
 }
 
@@ -41,7 +41,7 @@ function Settings() {
     <Card className="content-card"><h2>About this companion</h2><dl className="definition-list">
       <div><dt>Local brewing</dt><dd>Your browser connects to the brewing service on your home network. No cloud account is required for this preview.</dd></div>
       <div><dt>You operate the equipment</dt><dd>The app is here to monitor, record, and advise. Physical actions always stay with you.</dd></div>
-      <div><dt>What is available today</dt><dd>Navigation, the recipe library preview, and service connection checks. Recipe storage, imports, batches, and sensors are not available yet.</dd></div>
+      <div><dt>What is available today</dt><dd>Create recipe drafts and save their names and descriptions. Ingredient and step editing, imports, publishing, batches, and sensors are not available yet.</dd></div>
     </dl></Card>
   </>;
 }
@@ -81,7 +81,8 @@ export function App() {
     </header>
     <main id="main-content" tabIndex={-1} className="app-main">
       <Connection {...service} />
-      {route === '#/recipes' ? <RecipeLibrary /> : route === '#/home' ? <Home /> : route === '#/settings' ? <Settings /> : <NotFound />}
+      <div hidden={route !== '#/recipes'}><RecipeLibrary active={route === '#/recipes'} /></div>
+      {route === '#/recipes' ? null : route === '#/home' ? <Home /> : route === '#/settings' ? <Settings /> : <NotFound />}
     </main>
     <footer className="app-footer"><span><Icon name="wheat" />Made for the way you brew.</span><span>Plan thoughtfully. Brew manually. Keep learning.</span></footer>
   </>;

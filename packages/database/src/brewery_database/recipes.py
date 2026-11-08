@@ -1,14 +1,15 @@
 """Transactional PostgreSQL implementation of the domain draft storage port."""
 from collections import defaultdict
+from functools import wraps
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.engine import Engine
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from brewery_domain.recipe_plan import Addition, Ingredient, RecipePlan, Step
 from brewery_domain.recipes import (
-    DraftConflict, DraftNotFound, InvalidDraft, RecipeDraft, StoredDraft, validate_draft,
+    DraftConflict, DraftNotFound, InvalidDraft, RecipeDraft, RecipeOverview, RecipeStorageUnavailable, StoredDraft, validate_draft,
 )
 
 
@@ -20,7 +21,8 @@ _version = sa.Table('recipe_version', _metadata,
                     sa.Column('version_number', sa.Integer), sa.Column('status', sa.Text),
                     sa.Column('name', sa.Text), sa.Column('description', sa.Text),
                     sa.Column('edit_revision', sa.BigInteger),
-                    sa.Column('updated_at', sa.DateTime(timezone=True)))
+                    sa.Column('updated_at', sa.DateTime(timezone=True)),
+                    sa.Column('created_at', sa.DateTime(timezone=True)))
 _ingredient = sa.Table('recipe_ingredient', _metadata,
                        sa.Column('version_id', sa.Text, primary_key=True),
                        sa.Column('id', sa.Text, primary_key=True), sa.Column('position', sa.Integer),
@@ -47,6 +49,16 @@ def _validate(draft):
     issues = validate_draft(draft)
     if issues:
         raise InvalidDraft(issues)
+
+
+def _storage_errors(operation):
+    @wraps(operation)
+    def wrapped(*arguments, **options):
+        try:
+            return operation(*arguments, **options)
+        except SQLAlchemyError:
+            raise RecipeStorageUnavailable('Recipe storage is unavailable.') from None
+    return wrapped
 
 
 def _write_plan(connection, plan):
@@ -97,6 +109,7 @@ class PostgresRecipeDraftStore:
     def __init__(self, engine: Engine):
         self.engine = engine
 
+    @_storage_errors
     def create(self, draft: RecipeDraft) -> StoredDraft:
         try:
             with self.engine.begin() as connection:
@@ -115,6 +128,7 @@ class PostgresRecipeDraftStore:
                 raise DraftConflict('That recipe version already exists.') from None
             raise
 
+    @_storage_errors
     def load(self, version_id: str) -> StoredDraft | None:
         with self.engine.begin() as connection:
             # The shared parent lock keeps all child reads coherent at READ COMMITTED.
@@ -122,6 +136,18 @@ class PostgresRecipeDraftStore:
                                      .with_for_update(read=True)).mappings().one_or_none()
             return _stored(connection, row) if row is not None else None
 
+    @_storage_errors
+    def list_drafts(self, limit: int, offset: int) -> tuple[RecipeOverview, ...]:
+        if type(limit) is not int or not 1 <= limit <= 101 or type(offset) is not int or not 0 <= offset <= 100000:
+            raise ValueError('Draft pagination is outside its supported bounds.')
+        with self.engine.connect() as connection:
+            rows = connection.execute(sa.select(_version).where(_version.c.status == 'draft')
+                                      .order_by(_version.c.created_at.desc(), _version.c.id)
+                                      .limit(limit).offset(offset)).mappings()
+            return tuple(RecipeOverview(row['recipe_id'], row['id'], row['version_number'],
+                                        row['name'], row['description'], row['edit_revision']) for row in rows)
+
+    @_storage_errors
     def save(self, draft: RecipeDraft, expected_revision: int) -> StoredDraft:
         if type(expected_revision) is not int or expected_revision < 1:
             raise ValueError('Expected edit revision must be a positive integer.')

@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "expected_revision": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Expected Revision",
+      "type": "integer"
+    },
+    "name": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Name"
+    },
+    "description": {
+      "anyOf": [
+        {
+          "maxLength": 10000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Description"
+    }
+  },
+  "required": [
+    "expected_revision",
+    "name",
+    "description"
+  ],
+  "title": "UpdateOverviewV1",
+  "type": "object"
+}

@@ -74,3 +74,10 @@ Checks: later profile or recipe edits leave the batch intact; substitutions reta
 Use semantic tokens and shared accessible components. Preserve primary tasks across desktop/tablet/phone layouts; do not require pixel-for-pixel copies. Include visible focus, keyboard operation, generous touch targets, and statuses communicated beyond color.
 
 Specify empty, loading, validation-error, request-failure, disconnected, disabled, and success states for each implemented flow. Preserve entered data on recoverable errors. Validate real browser rendering and narrow viewports; DOM tests alone do not establish visual quality.
+
+
+## Implemented manual overview slice (M2)
+
+UI-04/UI-05 now have a local implementation for listing saved drafts, idempotent empty-draft creation, and editing a version's name/description through the [v1 overview API](../../packages/communications/contracts/recipes/v1/README.md). Loading/failure states are distinct from an empty database. Fields preserve entered values after errors. On conflict, review current saved data and explicitly choose whether to keep entered values or load saved values before retrying; no automatic overwrite occurs.
+
+Unsaved text persists while navigating Home/Settings/Recipes within the running page. Reload/close warns; switching drafts/new creation offers a keep/discard choice. A pending creation UUID is kept in session storage so a lost creation reply can be retried without duplication. The editor's unsupported search/style/ingredient/step/target/import/publication capabilities remain clearly unavailable. This is partial UI-04/UI-05 support and does not complete AC-01–AC-03 or the full screens.

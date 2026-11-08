@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Badge, Button, Card, EmptyState, SearchField, SelectField } from '../index';
+import { Badge, Button, Card, EmptyState, SearchField, SelectField, TextField, TextAreaField } from '../index';
 import './Gallery.css';
 
 export function Gallery() {
@@ -14,6 +14,14 @@ export function Gallery() {
         <Button variant="secondary" onClick={() => setClicks(0)}>Reset example</Button>
         <Button disabled>Disabled example</Button><Button busy>Saving…</Button>
       </div><output aria-label="Example count">{clicks}</output>
+    </Card>
+    <Card className="content-card" aria-label="Text entry states"><h2>Text entry</h2>
+      <TextField label="Example recipe name" hint="Optional draft name" />
+      <TextField label="Name with error" defaultValue="?" error="Review this name." />
+      <TextField label="Disabled name" disabled defaultValue="Unavailable" />
+      <TextAreaField label="Example description" hint="Keep notes with the draft." />
+      <TextAreaField label="Description with error" error="Review this description." />
+      <TextAreaField label="Disabled description" disabled />
     </Card>
     <Card className="content-card" aria-label="Form control states"><h2>Search and select</h2>
       <SearchField label="Find an ingredient" value={search} onChange={(event) => setSearch(event.target.value)} />

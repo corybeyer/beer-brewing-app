@@ -59,3 +59,17 @@ class ConfigurationTests(unittest.TestCase):
                 with self.assertRaises(ValueError) as error:
                     database_url(value)
                 self.assertEqual(str(error.exception), "DATABASE_URL must name a PostgreSQL database")
+
+
+class BrowserHostConfigurationTests(unittest.TestCase):
+    def test_default_and_exact_host_alias_configuration(self):
+        from brewery_config import browser_trusted_hosts
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertIn('apphomebrew', browser_trusted_hosts())
+        with patch.dict(os.environ, {'BROWSER_TRUSTED_HOSTS': ' localhost, MyBrew.local '}):
+            self.assertEqual(browser_trusted_hosts(), {'localhost', 'mybrew.local'})
+        for value in ('', '*.example', 'http://brewery', 'brewery:8080', 'localhost,'):
+            with self.subTest(value=value):
+                with patch.dict(os.environ, {'BROWSER_TRUSTED_HOSTS': value}):
+                    with self.assertRaises(ValueError):
+                        browser_trusted_hosts()

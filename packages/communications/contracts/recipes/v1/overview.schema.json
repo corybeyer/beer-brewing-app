@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "recipe_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Recipe Id",
+      "type": "string"
+    },
+    "version_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Version Id",
+      "type": "string"
+    },
+    "version_number": {
+      "maximum": 2147483647,
+      "minimum": 1,
+      "title": "Version Number",
+      "type": "integer"
+    },
+    "name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Name"
+    },
+    "description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Description"
+    },
+    "edit_revision": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Edit Revision",
+      "type": "integer"
+    },
+    "status": {
+      "const": "draft",
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "recipe_id",
+    "version_id",
+    "version_number",
+    "name",
+    "description",
+    "edit_revision",
+    "status"
+  ],
+  "title": "RecipeOverviewV1",
+  "type": "object"
+}

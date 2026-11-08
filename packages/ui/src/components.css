@@ -13,7 +13,7 @@
 .page-heading { display: flex; justify-content: space-between; align-items: center; gap: var(--space-5); margin-bottom: var(--space-8); }
 .page-heading h1 { margin-top: var(--space-2); margin-bottom: var(--space-3); }
 .page-heading p:last-child { color: var(--color-text-muted); max-width: var(--layout-text-width); }
-.content-card { padding: var(--space-8); }
+.content-card { padding: var(--space-8); min-width: 0; overflow-wrap: anywhere; }
 .content-card > * + * { margin-top: var(--space-4); }
 .definition-list { display: grid; gap: var(--space-5); margin: var(--space-6) 0 0; }
 .definition-list dt { font-weight: var(--font-weight-medium); }
@@ -29,6 +29,13 @@
 .search-field:has(input:disabled), .select-field:has(select:disabled) { color: var(--color-disabled-text); }
 .search-field:has(input[aria-invalid='true']) { border-color: var(--color-danger); }
 .field-error { color: var(--color-danger); font-size: var(--font-size-small); }
+.form-field { display: grid; gap: var(--space-2); }
+.form-field label { font-weight: var(--font-weight-medium); font-size: var(--font-size-small); }
+.form-field input, .form-field textarea { width: 100%; min-height: var(--size-touch); padding: var(--space-3); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-background); color: var(--color-text); }
+.form-field textarea { resize: vertical; }
+.form-field :disabled { color: var(--color-disabled-text); background: var(--color-disabled-background); }
+.form-field [aria-invalid='true'] { border-color: var(--color-danger); }
+.field-hint { color: var(--color-text-muted); font-size: var(--font-size-small); }
 .select-field select { appearance: none; width: 100%; border: 0; background: transparent; color: inherit; padding: var(--space-3) var(--space-10) var(--space-3) var(--space-3); font-size: var(--font-size-small); }
 .select-field .icon { position: absolute; right: var(--space-3); pointer-events: none; width: var(--size-icon-small); height: var(--size-icon-small); }
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: var(--layout-empty-height); text-align: center; padding: var(--space-10) var(--space-6); }

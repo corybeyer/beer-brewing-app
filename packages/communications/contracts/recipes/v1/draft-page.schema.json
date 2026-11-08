@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "RecipeOverviewV1": {
+      "additionalProperties": false,
+      "properties": {
+        "recipe_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Recipe Id",
+          "type": "string"
+        },
+        "version_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Version Id",
+          "type": "string"
+        },
+        "version_number": {
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Version Number",
+          "type": "integer"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Name"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Description"
+        },
+        "edit_revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Edit Revision",
+          "type": "integer"
+        },
+        "status": {
+          "const": "draft",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "recipe_id",
+        "version_id",
+        "version_number",
+        "name",
+        "description",
+        "edit_revision",
+        "status"
+      ],
+      "title": "RecipeOverviewV1",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/RecipeOverviewV1"
+      },
+      "maxItems": 100,
+      "title": "Items",
+      "type": "array"
+    },
+    "next_offset": {
+      "anyOf": [
+        {
+          "maximum": 100000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Next Offset"
+    }
+  },
+  "required": [
+    "items",
+    "next_offset"
+  ],
+  "title": "DraftPageV1",
+  "type": "object"
+}

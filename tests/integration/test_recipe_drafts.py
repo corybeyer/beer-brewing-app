@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from brewery_database import recipes
 from brewery_database.connection import SCHEMA_REVISION, database_is_ready
 from brewery_domain.recipe_plan import Addition, Ingredient, RecipePlan, Step, UNITS
-from brewery_domain.recipes import DraftConflict, DraftNotFound, InvalidDraft, RecipeDraft
+from brewery_domain.recipes import DraftConflict, DraftNotFound, InvalidDraft, RecipeDraft, RecipeStorageUnavailable
 from tests.fixtures.postgres_support import PostgreSQLTestCase
 
 
@@ -101,7 +101,7 @@ class RecipeDraftTests(PostgreSQLTestCase):
             connection.execute(sa.text("ALTER TABLE recipe_ingredient ADD CONSTRAINT fixture_rejection CHECK (name <> 'rejected by database')"))
         changed = replace(draft, name='Must roll back', plan=replace(draft.plan, ingredients=(
             replace(draft.plan.ingredients[0], name='rejected by database'),)))
-        with self.assertRaises(IntegrityError):
+        with self.assertRaises(RecipeStorageUnavailable):
             self.store.save(changed, 1)
         self.assertEqual(self.store.load('v1'), original)
 

@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "ErrorDetailV1": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "enum": [
+            "validation_error",
+            "conflict",
+            "not_found",
+            "unavailable",
+            "forbidden",
+            "unsupported_media_type",
+            "request_too_large",
+            "invalid_request"
+          ],
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "issues": {
+          "items": {
+            "$ref": "#/$defs/FieldIssueV1"
+          },
+          "title": "Issues",
+          "type": "array"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "ErrorDetailV1",
+      "type": "object"
+    },
+    "FieldIssueV1": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "code",
+        "message"
+      ],
+      "title": "FieldIssueV1",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "error": {
+      "$ref": "#/$defs/ErrorDetailV1"
+    }
+  },
+  "required": [
+    "error"
+  ],
+  "title": "RecipeErrorV1",
+  "type": "object"
+}

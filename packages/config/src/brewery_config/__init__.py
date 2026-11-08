@@ -7,6 +7,15 @@ from sqlalchemy.engine import URL, make_url
 from sqlalchemy.exc import ArgumentError
 
 
+def browser_trusted_hosts() -> frozenset[str]:
+    hosts = os.environ.get('BROWSER_TRUSTED_HOSTS', 'localhost,apphomebrew,apphomebrew.local').split(',')
+    normalized = frozenset(host.strip().lower() for host in hosts)
+    if not normalized or any(not host or any(character not in 'abcdefghijklmnopqrstuvwxyz0123456789.-' for character in host)
+                             for host in normalized):
+        raise ValueError('BROWSER_TRUSTED_HOSTS must contain comma-separated exact hostnames.')
+    return normalized
+
+
 def web_assets_directory() -> Path | None:
     """Opt into serving a complete frontend build; never fall back to source."""
     value = os.environ.get("WEB_ASSETS_DIRECTORY")
