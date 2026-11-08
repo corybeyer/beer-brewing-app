@@ -28,6 +28,7 @@ Reviewed November 8, 2026. These links are calculation/design references, not ru
 | [Foambyte: efficiency](https://foambyte.com/calculators/brewhouse-efficiency-calculator/) | Distinguishes kettle/pre-boil mash efficiency from fermenter brewhouse efficiency | Do not interchange the two measurement points |
 | [Briess: extract products](https://brewingwithbriess.com/products/extracts/) | Manufacturer composition and sensory information for matching known products | Product-specific; preserve source/version instead of generalizing a brand to every extract |
 | [Briess: Dark Munich example](https://www.brewingwithbriess.com/wp-content/uploads/documents/Briess-PISB-Dark-Munich-Malt-30L.pdf) | Example of sourced malt/toast descriptors and usage-dependent character | Ingredient sensory notes are contributions, not a guarantee of finished-beer flavor |
+| [NIST Handbook 44, Appendix C](https://www.nist.gov/document/2026-nist-handbook-44-appendix-c) | Avoirdupois mass conversion: 1 lb = 0.45359237 kg and 16 oz = 1 lb | Ounces here are mass, not fluid ounces |
 
 ## Calculation contract
 
@@ -91,3 +92,14 @@ These are conversion-plan IDs, separate from the repository's AC-01–AC-14. Pas
 | CV-10 | Whole-recipe adaptation flags mash/boil/hop-balance review; no promise of identical flavor, readiness, or performed physical actions |
 | CV-11 | Phone/tablet/desktop, keyboard, accessible labels, explicit empty/loading/failure states; standalone tool and recipe proposal agree for identical inputs |
 | CV-12 | New catalogue/proposal schema survives migration, restricted-role use, and verified restore under deployment compatibility checks before release |
+
+
+## C1 domain interface and current evidence
+
+`brewery_domain.extract_conversion.convert_fermentable(Mass, source_yield, target_yield, target_unit)` is the first implemented slice. Frozen `FermentableYield` values require Decimal `potential_ppg`, Decimal `recovery_fraction`, a comparison point (`kettle` or `fermenter`), and nonblank provenance. No product yield or recovery defaults are supplied. The core does not infer grain/DME/LME identity; later catalogue adapters must validate ingredient-specific assumptions.
+
+Mass accepts positive finite Decimal input, or a positive Fraction for chaining an exact computed result. Decimal inputs allow at most 24 digits, exponents -12 through 12, and magnitude below 10^13; rational mass inputs allow numerator/denominator up to 512 bits. These are numerical resource bounds, not assertions that all inputs within them are realistic brewing values. Floats, integers, booleans, numeric strings, absent values, unknown/fluid mass units, invalid recoveries, and mismatched comparison points fail with `ConversionInputError.path` before a result is returned. Future transport adapters must parse bounded decimal strings and preserve the comparison-point/provenance information.
+
+The result retains source mass and both yield assumptions, target mass as an exact Fraction with its requested unit, gravity contribution in points × US gallons, and calculation version `gravity-equivalence/v1`. It does not mutate a recipe, round a weighing proposal, call a calculator site, or provide a flavor/readiness recommendation. Multi-component blends remain C3 work.
+
+Sixteen focused tests passed with `.venv/bin/python -m unittest tests.unit.test_extract_conversion -v`, covering CF-01–CF-05, differing defaults, exact public-interface inverse conversions, mass-unit equivalence, recovery sensitivity, changed Decimal context, provenance/immutability, and invalid/bounded inputs (numerical coverage toward CV-01–CV-04). Final full pre-PR results remain source-bound in `.validation/pre-pr.json`; CI is required independently. This is not evidence for catalogue, proposal, UI, or full M2/M6 acceptance.
