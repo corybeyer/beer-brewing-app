@@ -67,6 +67,30 @@ test('lost creation response survives refresh and reuses a UUID without randomUU
   expect(api.keys[0]).toMatch(/^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/);
 });
 
+test('retrying a created draft resets pagination without skipping an existing draft', async ({ page }) => {
+  const api = await server(page, true);
+  await page.route('**/api/v1/recipe-drafts?*', (route) => {
+    const offset = Number(new URL(route.request().url()).searchParams.get('offset'));
+    const all = [...api.drafts.values()].reverse();
+    return route.fulfill({ json: { items: all.slice(offset, offset + 50), next_offset: offset + 50 < all.length ? offset + 50 : null } });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'New recipe', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('could not be completed');
+  for (let index = 0; index < 51; index += 1) {
+    api.drafts.set(`existing-${index}`, { recipe_id: `recipe-${index}`, version_id: `existing-${index}`,
+      version_number: 1, name: `Existing draft ${index}`, description: null, edit_revision: 1, status: 'draft' });
+  }
+  await page.reload();
+  await page.getByRole('button', { name: 'Retry new draft', exact: true }).click();
+  await expect(page.getByText('New draft created. Add a name and description when you are ready.', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Load more drafts', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Load more drafts', exact: true })).not.toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open Existing draft 0', exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Saved recipe drafts', exact: true }).getByRole('heading', { level: 2 })).toHaveCount(52);
+  expect(api.keys[1]).toBe(api.keys[0]); expect(api.drafts.size).toBe(52);
+});
+
 test('failed saves and field validation retain entered values until a successful retry', async ({ page }) => {
   await server(page); await newDraft(page);
   let attempt = 0;

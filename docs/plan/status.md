@@ -1,6 +1,6 @@
 # Current development status
 
-As of November 7, 2026 (America/Chicago). This is a development snapshot, not a live production health report.
+As of November 8, 2026 (America/Chicago). This is a development snapshot, not a live production health report.
 
 ## Active repository
 
@@ -76,7 +76,7 @@ The prototype was not integrated or executed during knowledge-base creation. Its
 
 ## Next action
 
-PR #10 is merged and deployed at `2df377693d647aa87ec0b98d5470d78fe93c379c`. Installed operations were updated from the reviewed PR commit before merge; main CI, publication, and automatic Pi deployment succeeded. The six recipe tables, schema readiness, live frontend, timer, and a fresh post-migration snapshot backup/restore were verified below. The local M2/UI-04/UI-05 slice now implements the versioned overview HTTP contract and manual name/description editor using the existing storage port. Complete its pre-PR/browser/container checks and review before release; ingredient/step editing remains next. Publication, batch history, and complete M2 acceptance remain pending.
+PR #10 is merged and deployed at `2df377693d647aa87ec0b98d5470d78fe93c379c`. Installed operations were updated from the reviewed PR commit before merge; main CI, publication, and automatic Pi deployment succeeded. The six recipe tables, schema readiness, live frontend, timer, and a fresh post-migration snapshot backup/restore were verified below. The M2/UI-04/UI-05 overview API and name/description editor merged in [PR #11](https://github.com/corybeyer/beer-brewing-app/pull/11) as `6748d84670bbef09a727901b777ae12040e63d88`. Its deployment has not been independently checked in this session. The creation-retry pagination follow-up is under review; ingredient/step editing remains next. Publication, batch history, and complete M2 acceptance remain pending.
 
 ## M1 container-validation follow-up
 
@@ -157,5 +157,7 @@ The earlier baseline-only/source-not-mergeable statements describe preceding sta
 The first UI-04/UI-05 write flow lists stored drafts, creates empty version-one drafts with idempotent UUID keys, reads overviews, and edits name/description with a required edit revision. Domain services preserve the complete existing plan. The database port now supplies summary listing and sanitized availability errors; schema revision remains `0002_recipe_drafts`. No migrations or installed operations changes are required. New v1 request/response/error JSON schemas and generated OpenAPI describe pagination, strict fields, limits, conflicts, and unavailable storage. No ingredient, step, target, classification, import, publication, or batch edit controls are enabled.
 
 The local browser request boundary checks host/origin/Fetch Metadata, bounds JSON bodies, and prohibits framing of entry pages. Exact extra hostname aliases come through packages/config. This does not add user authentication or broaden network exposure (D-07 remains open). Shared text/textarea controls have labels, hints, field errors, disabled/focus states, and gallery examples. The library retains typed text on failed saves and app navigation; switching drafts asks before discarding. Conflict review does not overwrite automatically. A pending creation key survives refresh in session storage; UUID generation works on plain HTTP without randomUUID.
+
+During November 8 release review, creation retries were corrected to reload pagination rather than assume each successful response inserted a new row. This prevents skipping an existing draft after a lost creation response and browser reload; the regression scenario uses a multi-page library on desktop, tablet, and phone. Full source-bound release check results remain in `.validation/pre-pr.json`.
 
 Focused real PostgreSQL API tests passed for idempotent creation, metadata preservation, strict validation, conflict behavior, pagination, origin/host/body guards, and sanitized outage responses. Six targeted desktop/tablet/phone failure/late-response browser checks passed after correcting a focus timing issue. A temporary real FastAPI process, built frontend, and PostgreSQL 17 TCP/SCRAM instance with restricted application role passed all 27 live startup/outage/recovery browser checks, including create/save/reload on each viewport; generated records stayed in disposable databases. Final source-bound pre-PR results remain in `.validation/pre-pr.json`; actual container and ARM64 execution remain CI requirements. No production draft data was created or changed, and this new UI/API slice is not deployed yet. Full M2 and end-to-end AC-01–AC-03 remain pending.
