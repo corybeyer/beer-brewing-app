@@ -1,5 +1,5 @@
 /* Page arrangement only. Reusable presentation belongs in design-system/. */
-.library-layout { display: grid; grid-template-columns: minmax(0, 1fr) var(--layout-aside-width); gap: var(--space-6); align-items: start; }
+.library-layout { display: grid; grid-template-columns: minmax(0, var(--layout-aside-width)) minmax(0, 1fr); gap: var(--space-6); align-items: start; }
 .journey { margin-top: var(--space-8); padding: var(--space-6) 0; }
 .journey__heading { margin-bottom: var(--space-6); }
 .journey__heading h2 { margin-top: var(--space-2); }
@@ -10,3 +10,9 @@
 .recipe-list { display: grid; gap: var(--space-4); padding: var(--space-5); }
 .recipe-form { display: grid; gap: var(--space-5); }
 .recipe-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+
+.recipe-form > * { margin: 0; }
+.recipe-field { display: grid; gap: var(--space-2); }
+.recipe-field > * { margin: 0; }
+
+.recipe-editor { display: grid; gap: var(--space-6); }

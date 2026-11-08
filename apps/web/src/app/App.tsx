@@ -31,7 +31,7 @@ function Connection({ state, retry }: { state: ServiceState; retry: () => void }
 function Home() {
   return <>
     <PageHeading eyebrow="Your home brewery" title="More good brewing ahead." description="A little preparation, a clear brew day, and room to learn from every batch." />
-    <Card className="content-card"><Badge tone="positive">Start a draft</Badge><h2>Start with the recipe.</h2><p className="muted">Create a recipe draft and keep its name and description together. Ingredients and guided brew days will follow.</p><a href="#/recipes" className="text-link">Open recipe library<Icon name="arrow" /></a></Card>
+    <Card className="content-card"><Badge tone="positive">Start a draft</Badge><h2>Start with the recipe.</h2><p className="muted">Create a recipe draft and keep its name and description together. Add ingredients as your plan develops. Guided brew days will follow.</p><a href="#/recipes" className="text-link">Open recipe library<Icon name="arrow" /></a></Card>
   </>;
 }
 
@@ -41,7 +41,7 @@ function Settings() {
     <Card className="content-card"><h2>About this companion</h2><dl className="definition-list">
       <div><dt>Local brewing</dt><dd>Your browser connects to the brewing service on your home network. No cloud account is required for this preview.</dd></div>
       <div><dt>You operate the equipment</dt><dd>The app is here to monitor, record, and advise. Physical actions always stay with you.</dd></div>
-      <div><dt>What is available today</dt><dd>Create recipe drafts and save their names and descriptions. Ingredient and step editing, imports, publishing, batches, and sensors are not available yet.</dd></div>
+      <div><dt>What is available today</dt><dd>Create recipe drafts and save their names, descriptions, and ingredients. Step editing, imports, publishing, batches, and sensors are not available yet.</dd></div>
     </dl></Card>
   </>;
 }

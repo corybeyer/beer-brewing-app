@@ -1,12 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import type { RecipeOverview } from '@brewery/communications/recipes';
+import type { RecipeOverview, RecipeIngredient } from '@brewery/communications/recipes';
 
 const endpoint = '**/api/v1/recipe-drafts**';
 const failure = (code: string, message: string, issues: { path: string; code: string; message: string }[] = []) => ({ error: { code, message, issues } });
 
 async function server(page: Page, loseFirstCreate = false) {
   const drafts = new Map<string, RecipeOverview>();
+  const ingredients = new Map<string, RecipeIngredient[]>();
   const keys: string[] = []; const revisions: number[] = [];
   await page.route('**/api/v1/readiness', (route) => route.fulfill({ json: { status: 'ready' } }));
   await page.route(endpoint, async (route) => {
@@ -24,14 +25,24 @@ async function server(page: Page, loseFirstCreate = false) {
       const id = decodeURIComponent(url.pathname.split('/').at(-2)!); const draft = drafts.get(id)!;
       const body = request.postDataJSON(); revisions.push(body.expected_revision);
       if (body.expected_revision !== draft.edit_revision) return route.fulfill({ status: 409, json: failure('conflict', 'This draft changed elsewhere. Review the latest saved version before retrying.') });
+      if (url.pathname.endsWith('/ingredients')) {
+        ingredients.set(id, body.ingredients);
+        drafts.set(id, { ...draft, edit_revision: draft.edit_revision + 1 });
+        return route.fulfill({ json: { version_id: id, edit_revision: draft.edit_revision + 1, ingredients: body.ingredients } });
+      }
       const saved = { ...draft, name: body.name, description: body.description, edit_revision: draft.edit_revision + 1 };
       drafts.set(id, saved); return route.fulfill({ json: saved });
     }
     if (url.pathname === '/api/v1/recipe-drafts') return route.fulfill({ json: { items: [...drafts.values()].reverse(), next_offset: null } });
+    if (url.pathname.endsWith('/ingredients')) {
+      const id = decodeURIComponent(url.pathname.split('/').at(-2)!);
+      const draft = drafts.get(id)!;
+      return route.fulfill({ json: { version_id: id, edit_revision: draft.edit_revision, ingredients: ingredients.get(id) ?? [] } });
+    }
     const draft = drafts.get(decodeURIComponent(url.pathname.split('/').at(-1)!));
     return route.fulfill({ status: draft ? 200 : 404, json: draft ?? failure('not_found', 'This draft could not be found.') });
   });
-  return { drafts, keys, revisions };
+  return { drafts, ingredients, keys, revisions };
 }
 
 async function newDraft(page: Page) {
@@ -200,4 +211,124 @@ test('a timed-out save that committed requires review instead of a duplicate wri
   await page.getByRole('button', { name: 'Use saved values', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Save overview', exact: true })).toBeDisabled();
   expect(api.drafts.get(draft.version_id)?.edit_revision).toBe(2);
+});
+
+test('ingredient quantities persist exactly and unsaved rows survive navigation', async ({ page }, testInfo) => {
+  const api = await server(page); await newDraft(page);
+  await page.getByRole('button', { name: 'Add ingredient', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Ingredient 1 name', exact: true })).toBeFocused();
+  await page.getByRole('textbox', { name: 'Ingredient 1 name', exact: true }).fill('Cascade');
+  await page.getByRole('combobox', { name: 'Ingredient 1 category', exact: true }).selectOption('hops');
+  await page.getByRole('textbox', { name: 'Ingredient 1 quantity', exact: true }).fill('20.123456789012');
+  await page.getByRole('combobox', { name: 'Ingredient 1 unit', exact: true }).selectOption('g');
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await page.getByRole('link', { name: 'Recipes', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Ingredient 1 quantity', exact: true })).toHaveValue('20.123456789012');
+  await page.getByRole('button', { name: 'New recipe', exact: true }).click();
+  await page.getByRole('button', { name: 'Keep editing', exact: true }).click();
+  await page.getByRole('button', { name: 'Save ingredients', exact: true }).click();
+  await expect(page.getByText('Ingredients saved.', { exact: true })).toBeVisible();
+  await page.getByRole('textbox', { name: 'Recipe name', exact: true }).fill('Hops experiment');
+  await page.getByRole('button', { name: 'Save overview', exact: true }).click();
+  await expect(page.getByText('Draft overview saved.', { exact: true })).toBeVisible();
+  await page.reload(); await page.getByRole('button', { name: 'Open Hops experiment', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Ingredient 1 quantity', exact: true })).toHaveValue('20.123456789012');
+  expect([...api.ingredients.values()][0][0].quantity).toBe('20.123456789012');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
+  const rowBounds = await page.getByRole('region', { name: 'Ingredient 1', exact: true }).boundingBox();
+  const inputBounds = await page.getByRole('textbox', { name: 'Ingredient 1 name', exact: true }).boundingBox();
+  expect(inputBounds!.x + inputBounds!.width).toBeLessThanOrEqual(rowBounds!.x + rowBounds!.width);
+  await page.screenshot({ path: testInfo.outputPath('ingredient-editor.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Remove ingredient 1', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Add ingredient', exact: true })).toBeFocused();
+  await page.getByRole('button', { name: 'Save ingredients', exact: true }).click();
+  await expect(page.getByText('Ingredients saved.', { exact: true })).toBeVisible();
+  expect([...api.ingredients.values()][0]).toEqual([]);
+});
+
+test('ingredient validation and conflicts preserve rows and require explicit review', async ({ page }) => {
+  const api = await server(page); await newDraft(page);
+  await page.getByRole('button', { name: 'Add ingredient', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Ingredient 1 name', exact: true }).fill('Keep this grain');
+  await page.getByRole('textbox', { name: 'Ingredient 1 quantity', exact: true }).fill('0');
+  let invalid = true;
+  await page.route('**/ingredients', (route) => {
+    if (route.request().method() === 'PATCH' && invalid) return route.fulfill({ status: 422, json: failure('validation_error', 'Check the highlighted fields.', [
+      { path: 'ingredients[0].quantity', code: 'invalid_quantity', message: 'Supply a finite positive decimal quantity.' }]) });
+    return route.fallback();
+  });
+  await page.getByRole('button', { name: 'Save ingredients', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Ingredient 1 quantity', exact: true })).toHaveAttribute('aria-invalid', 'true');
+  await expect(page.getByRole('textbox', { name: 'Ingredient 1 name', exact: true })).toHaveValue('Keep this grain');
+  invalid = false;
+  await page.getByRole('textbox', { name: 'Ingredient 1 quantity', exact: true }).fill('4.5');
+  const draft = [...api.drafts.values()][0];
+  api.drafts.set(draft.version_id, { ...draft, name: 'Other device name', edit_revision: 2 });
+  await page.getByRole('button', { name: 'Save ingredients', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Save ingredients', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Review saved ingredients', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Latest saved ingredients', exact: true })).toContainText('No ingredients saved.');
+  await page.getByRole('button', { name: 'Keep my ingredient changes', exact: true }).click();
+  await page.getByRole('button', { name: 'Save ingredients', exact: true }).click();
+  await expect(page.getByText('Ingredients saved.', { exact: true })).toBeVisible();
+  // A newer ingredient revision must not silently authorize overwriting stale overview text.
+  await page.getByRole('textbox', { name: 'Recipe name', exact: true }).fill('Stale overview');
+  await page.getByRole('button', { name: 'Save overview', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'This draft changed elsewhere', exact: true })).toBeVisible();
+  expect(api.drafts.get(draft.version_id)?.name).toBe('Other device name');
+});
+
+test('failed ingredient loads stay distinct from an empty list and can be retried', async ({ page }) => {
+  await server(page);
+  let unavailable = true;
+  await page.route('**/ingredients', (route) => unavailable
+    ? route.fulfill({ status: 503, json: failure('unavailable', 'Recipe storage is unavailable.') }) : route.fallback());
+  await newDraft(page);
+  await expect(page.getByRole('button', { name: 'Add ingredient', exact: true })).toBeDisabled();
+  await expect(page.getByText('No ingredients in this draft yet.', { exact: true })).not.toBeVisible();
+  unavailable = false;
+  await page.getByRole('button', { name: 'Retry loading ingredients', exact: true }).click();
+  await page.getByRole('button', { name: 'Add ingredient', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Ingredient 1 name', exact: true }).fill('Discard this row');
+  await page.getByRole('button', { name: 'Discard ingredient changes', exact: true }).click();
+  await expect(page.getByText('No ingredients in this draft yet.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add ingredient', exact: true })).toBeFocused();
+  await page.getByRole('button', { name: 'Add ingredient', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Ingredient 1 name', exact: true }).fill('Unsaved row');
+  await page.getByRole('button', { name: 'New recipe', exact: true }).click();
+  await page.getByRole('button', { name: 'Discard changes and continue', exact: true }).click();
+  await expect(page.getByText('No ingredients in this draft yet.', { exact: true })).toBeVisible();
+});
+
+test('failed and timed-out ingredient saves retain rows and reconcile a committed write', async ({ page }) => {
+  const api = await server(page); await newDraft(page);
+  await page.getByRole('button', { name: 'Add ingredient', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Ingredient 1 name', exact: true }).fill('Keep after failures');
+  let attempt = 0;
+  let release!: () => void; const waiting = new Promise<void>((resolve) => { release = resolve; });
+  let delivered!: () => void; const finished = new Promise<void>((resolve) => { delivered = resolve; });
+  await page.route('**/ingredients', async (route) => {
+    if (route.request().method() !== 'PATCH') return route.fallback();
+    attempt += 1;
+    if (attempt === 1) return route.fulfill({ status: 503, json: failure('unavailable', 'Recipe storage is unavailable.') });
+    if (attempt !== 2) return route.fallback();
+    const draft = [...api.drafts.values()][0];
+    const rows = route.request().postDataJSON().ingredients;
+    api.ingredients.set(draft.version_id, rows);
+    api.drafts.set(draft.version_id, { ...draft, edit_revision: 2 });
+    await waiting; await route.fulfill({ json: { version_id: draft.version_id, edit_revision: 2, ingredients: rows } }); delivered();
+  });
+  await page.getByRole('button', { name: 'Save ingredients', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('unavailable');
+  await expect(page.getByRole('textbox', { name: 'Ingredient 1 name', exact: true })).toHaveValue('Keep after failures');
+  await page.getByRole('button', { name: 'Save ingredients', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('could not be completed', { timeout: 8000 });
+  await page.getByRole('button', { name: 'Save ingredients', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Review saved ingredients', exact: true })).toBeVisible();
+  release(); await finished;
+  await page.getByRole('button', { name: 'Review saved ingredients', exact: true }).click();
+  await page.getByRole('button', { name: 'Use saved ingredients', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Save ingredients', exact: true })).toBeDisabled();
+  expect([...api.drafts.values()][0].edit_revision).toBe(2);
 });

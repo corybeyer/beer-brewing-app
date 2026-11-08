@@ -8,6 +8,7 @@ import {
   createDraft, listDrafts, loadDraft, newCreationId, RecipeRequestError, saveOverview,
   type RecipeOverview,
 } from '@brewery/communications/recipes';
+import { IngredientEditor } from './IngredientEditor';
 import './RecipeLibrary.css';
 
 type Selection = { kind: 'create' } | { kind: 'open'; id: string };
@@ -35,11 +36,15 @@ export function RecipeLibrary({ active = true }: { active?: boolean }) {
   const [conflict, setConflict] = useState(false);
   const [latest, setLatest] = useState<RecipeOverview | null>(null);
   const [pendingSelection, setPendingSelection] = useState<Selection | null>(null);
+  const [ingredientsDirty, setIngredientsDirty] = useState(false);
+  const [ingredientsBusy, setIngredientsBusy] = useState(false);
+  const [ingredientEpoch, setIngredientEpoch] = useState(0);
   const creationId = useRef<string | null>(storedKey());
   const listController = useRef<AbortController | null>(null);
   const actionController = useRef<AbortController | null>(null);
   const focusRequested = useRef(false);
-  const dirty = selected !== null && (name !== (selected.name ?? '') || description !== (selected.description ?? ''));
+  const overviewDirty = selected !== null && (name !== (selected.name ?? '') || description !== (selected.description ?? ''));
+  const dirty = overviewDirty || ingredientsDirty;
 
   const refresh = useCallback(async (offset = 0) => {
     listController.current?.abort(); const controller = new AbortController(); listController.current = controller;
@@ -73,6 +78,7 @@ export function RecipeLibrary({ active = true }: { active?: boolean }) {
 
   function show(draft: RecipeOverview) {
     focusRequested.current = true;
+    setIngredientEpoch((epoch) => epoch + 1); setIngredientsDirty(false);
     setSelected(draft); setName(draft.name ?? ''); setDescription(draft.description ?? '');
     setConflict(false); setLatest(null); setNotice('');
   }
@@ -122,7 +128,7 @@ export function RecipeLibrary({ active = true }: { active?: boolean }) {
   return <>
     <PageHeading headingId={active ? 'page-title' : 'recipe-page-title'} eyebrow="A little planning. A better brew." title="Recipe library"
       description="A home for your recipes, experiments, and next great batch."
-      action={<Button busy={busy === 'create'} disabled={busy !== null || listState !== 'ready' && !creationId.current}
+      action={<Button busy={busy === 'create'} disabled={ingredientsBusy || busy !== null || listState !== 'ready' && !creationId.current}
         onClick={() => choose({ kind: 'create' })}><Icon name="plus" />{busy === 'create' ? 'Creating draft…' : creationId.current ? 'Retry new draft' : 'New recipe'}</Button>} />
 
     {pendingSelection && <Card className="content-card" role="alert"><h2>Keep your unsaved changes?</h2>
@@ -132,7 +138,7 @@ export function RecipeLibrary({ active = true }: { active?: boolean }) {
       </div></Card>}
     <p aria-live="polite">{notice}</p>
     {error && <Card className="content-card" role="alert"><h2>{conflict ? 'This draft changed elsewhere' : 'Recipe request needs attention'}</h2>
-      <p>{error.message}</p>{conflict && <Button variant="secondary" busy={busy === 'review'} disabled={busy !== null}
+      <p>{error.message}</p>{conflict && <Button variant="secondary" busy={busy === 'review'} disabled={ingredientsBusy || busy !== null}
         onClick={() => selected && void run('review', (signal) => loadDraft(selected.version_id, signal), (draft) => {
           setLatest(draft); setError(null); setNotice('Latest saved version loaded for review. Your values have not been changed.');
         })}>Review latest saved version</Button>}
@@ -152,7 +158,7 @@ export function RecipeLibrary({ active = true }: { active?: boolean }) {
             title="Every good batch starts with a recipe." description="Create a draft and start with a name and your notes." />}
           {items.map((draft) => <Card className="content-card" key={draft.version_id}>
             <Badge>Draft · Version {draft.version_number}</Badge><h2>{draft.name ?? 'Untitled draft'}</h2>
-            <Button variant="secondary" disabled={busy !== null} aria-label={`Open ${draft.name ?? 'untitled draft'}`}
+            <Button variant="secondary" disabled={ingredientsBusy || busy !== null} aria-label={`Open ${draft.name ?? 'untitled draft'}`}
               onClick={() => choose({ kind: 'open', id: draft.version_id })}>{selected?.version_id === draft.version_id ? 'Editing this draft' : 'Open draft'}</Button>
           </Card>)}
           <div className="recipe-actions"><Button variant="secondary" busy={listState === 'loading'} onClick={() => void refresh()}>Refresh drafts</Button>
@@ -161,23 +167,29 @@ export function RecipeLibrary({ active = true }: { active?: boolean }) {
         <CardFooter icon="lock">Your brewing records belong on your home network.</CardFooter>
       </Card>
 
-      <aside aria-label="Recipe overview editor">
+      <aside className="recipe-editor" aria-label="Recipe overview editor">
         {selected ? <Card className="content-card"><Badge>Draft · Version {selected.version_number}</Badge><h2>Recipe overview</h2>
           <p className="muted">A name and a little context are enough to start. Incomplete drafts stay drafts.</p>
           {latest && <Card className="content-card" aria-label="Latest saved overview" aria-live="polite"><h3>Latest saved version</h3>
             <p><strong>{latest.name ?? 'Untitled draft'}</strong></p><p>{latest.description ?? 'No description saved.'}</p>
-            <div className="recipe-actions"><Button disabled={busy !== null} onClick={() => acceptLatest(true)}>Keep my values</Button>
-              <Button variant="secondary" disabled={busy !== null} onClick={() => acceptLatest(false)}>Use saved values</Button></div></Card>}
-          <form className="recipe-form" onSubmit={(event) => { event.preventDefault(); if (!busy && dirty && !conflict) save(); }}>
+            <div className="recipe-actions"><Button disabled={ingredientsDirty || ingredientsBusy || busy !== null} onClick={() => acceptLatest(true)}>Keep my values</Button>
+              <Button variant="secondary" disabled={ingredientsDirty || ingredientsBusy || busy !== null} onClick={() => acceptLatest(false)}>Use saved values</Button></div></Card>}
+          <form className="recipe-form" onSubmit={(event) => { event.preventDefault(); if (!busy && !ingredientsBusy && overviewDirty && !ingredientsDirty && !conflict) save(); }}>
             <TextField id="recipe-name" label="Recipe name" hint="Optional · up to 200 characters" maxLength={200}
               value={name} disabled={busy !== null} error={fieldError('name')} onChange={(event) => setName(event.target.value)} />
             <TextAreaField label="Description" hint="Your idea, goals, or notes · up to 10,000 characters" maxLength={10000}
               value={description} disabled={busy !== null} error={fieldError('description')} onChange={(event) => setDescription(event.target.value)} />
-            <p className="muted small" aria-live="polite">{dirty ? 'Unsaved changes' : 'Saved draft overview'}</p>
-            <Button type="submit" busy={busy === 'save'} disabled={busy !== null || !dirty || conflict}>{busy === 'save' ? 'Saving…' : 'Save overview'}</Button>
+            <p className="muted small" aria-live="polite">{overviewDirty ? 'Unsaved changes' : 'Saved draft overview'}</p>
+            <Button type="submit" busy={busy === 'save'} disabled={ingredientsBusy || busy !== null || !overviewDirty || ingredientsDirty || conflict}>{busy === 'save' ? 'Saving…' : 'Save overview'}</Button>
+            {ingredientsDirty && <p>Save or discard your ingredient changes before saving the overview.</p>}
           </form>
         </Card> : <Card className="content-card"><h2>Start with the idea.</h2><p className="muted">Create a recipe or open a saved draft to give it a name and description.</p></Card>}
-        <p id="recipe-availability" className="muted small">Name and description editing are available. Search, style, ingredients, steps, targets, imports, and publishing are not editable yet.</p>
+        {selected && <IngredientEditor key={`${selected.version_id}-${ingredientEpoch}`} versionId={selected.version_id} disabled={busy !== null}
+          onDirtyChange={setIngredientsDirty} onBusyChange={setIngredientsBusy} onSaved={(value) => {
+            setSelected((current) => current && current.version_id === value.version_id && current.edit_revision === value.edit_revision - 1
+              ? { ...current, edit_revision: value.edit_revision } : current);
+          }} />}
+        <p id="recipe-availability" className="muted small">Name, description, and ingredient editing are available. Search, style, steps, targets, imports, and publishing are not editable yet.</p>
         <InlineNote icon="shield">Advice for your brew.<br /><strong>You’re always in control.</strong></InlineNote>
       </aside>
     </div>

@@ -79,3 +79,26 @@ export async function saveOverview(draft: RecipeOverview, name: string, descript
   }
   return value;
 }
+
+export interface RecipeIngredient { id: string; name: string | null; category: string | null; quantity: string | null; unit: string | null }
+export interface IngredientList { version_id: string; edit_revision: number; ingredients: RecipeIngredient[] }
+function parseIngredients(value: unknown, versionId: string): IngredientList {
+  if (!object(value) || value.version_id !== versionId || !positiveInteger(value.edit_revision) || !Array.isArray(value.ingredients) ||
+      !value.ingredients.every((row) => object(row) && typeof row.id === 'string' && row.id.length > 0 &&
+        nullableText(row.name) && nullableText(row.category) && nullableText(row.unit) &&
+        (row.quantity === null || typeof row.quantity === 'string' && /^[0-9]+(?:\.[0-9]+)?$/.test(row.quantity))) ||
+      new Set(value.ingredients.map((row) => (row as RecipeIngredient).id)).size !== value.ingredients.length) {
+    throw new RecipeRequestError('invalid_response', 'The ingredient list could not be read. Please retry.');
+  }
+  return value as unknown as IngredientList;
+}
+export async function loadIngredients(versionId: string, signal: AbortSignal): Promise<IngredientList> {
+  return parseIngredients(await request(`${endpoint}/${encodeURIComponent(versionId)}/ingredients`, signal), versionId);
+}
+export async function saveIngredients(current: IngredientList, ingredients: RecipeIngredient[], signal: AbortSignal): Promise<IngredientList> {
+  const saved = parseIngredients(await request(`${endpoint}/${encodeURIComponent(current.version_id)}/ingredients`, signal, 'PATCH', {
+    expected_revision: current.edit_revision, ingredients,
+  }), current.version_id);
+  if (saved.edit_revision !== current.edit_revision + 1) throw new RecipeRequestError('invalid_response', 'The ingredient save could not be verified. Review the saved list before retrying.');
+  return saved;
+}
