@@ -21,6 +21,7 @@
     "@axe-core/playwright": "4.14.0",
     "@babel/parser": "8.1.0",
     "@playwright/test": "1.65.0",
-    "postcss": "8.5.32"
+    "postcss": "8.5.32",
+    "@brewery/communications": "*"
   }
 }

@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, SelectHTMLAttributes, ReactNode } from 'react';
+import { useId, type ButtonHTMLAttributes, type HTMLAttributes, type InputHTMLAttributes, type SelectHTMLAttributes, type TextareaHTMLAttributes, type ReactNode } from 'react';
 import { Icon, type IconName } from '@brewery/design-system/icons';
 
 export function Button({ busy = false, variant = 'primary', children, disabled, className = '', ...props }:
@@ -15,9 +15,9 @@ export function Badge({ children, tone = 'neutral' }: { children: ReactNode; ton
   return <span className={`badge badge--${tone}`}>{children}</span>;
 }
 
-export function PageHeading({ eyebrow, title, description, action }: { eyebrow: string; title: string; description: string; action?: ReactNode }) {
+export function PageHeading({ eyebrow, title, description, action, headingId = 'page-title' }: { eyebrow: string; title: string; description: string; action?: ReactNode; headingId?: string }) {
   return <div className="page-heading"><div><p className="eyebrow">{eyebrow}</p>
-    <h1 id="page-title" tabIndex={-1}>{title}</h1><p>{description}</p></div>{action}</div>;
+    <h1 id={headingId} tabIndex={-1}>{title}</h1><p>{description}</p></div>{action}</div>;
 }
 
 export function SearchField({ label, ...props }: InputHTMLAttributes<HTMLInputElement> & { label: string }) {
@@ -28,6 +28,26 @@ export function SearchField({ label, ...props }: InputHTMLAttributes<HTMLInputEl
 export function SelectField({ label, children, ...props }: SelectHTMLAttributes<HTMLSelectElement> & { label: string }) {
   return <label className="select-field"><span className="sr-only">{label}</span>
     <select {...props}>{children}</select><Icon name="chevron" /></label>;
+}
+
+export function TextField({ label, error, hint, id, ...props }: InputHTMLAttributes<HTMLInputElement> & { label: string; error?: string; hint?: string }) {
+  const generated = useId(); const field = id ?? generated;
+  const described = [props['aria-describedby'], hint ? `${field}-hint` : '', error ? `${field}-error` : ''].filter(Boolean).join(' ') || undefined;
+  return <div className="form-field"><label htmlFor={field}>{label}</label>
+    <input {...props} id={field} aria-invalid={error ? true : props['aria-invalid']} aria-describedby={described} />
+    {hint && <p className="field-hint" id={`${field}-hint`}>{hint}</p>}
+    {error && <p className="field-error" id={`${field}-error`}>{error}</p>}
+  </div>;
+}
+
+export function TextAreaField({ label, error, hint, id, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement> & { label: string; error?: string; hint?: string }) {
+  const generated = useId(); const field = id ?? generated;
+  const described = [props['aria-describedby'], hint ? `${field}-hint` : '', error ? `${field}-error` : ''].filter(Boolean).join(' ') || undefined;
+  return <div className="form-field"><label htmlFor={field}>{label}</label>
+    <textarea rows={6} {...props} id={field} aria-invalid={error ? true : props['aria-invalid']} aria-describedby={described} />
+    {hint && <p className="field-hint" id={`${field}-hint`}>{hint}</p>}
+    {error && <p className="field-error" id={`${field}-error`}>{error}</p>}
+  </div>;
 }
 
 export function EmptyState({ title, description, badge, children }: { title: ReactNode; description: ReactNode; badge: string; children?: ReactNode }) {

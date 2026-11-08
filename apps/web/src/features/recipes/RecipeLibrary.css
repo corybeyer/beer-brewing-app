@@ -7,3 +7,6 @@
 @media (max-width: 48rem) {
   .library-layout, .journey__steps { grid-template-columns: minmax(0, 1fr); }
 }
+.recipe-list { display: grid; gap: var(--space-4); padding: var(--space-5); }
+.recipe-form { display: grid; gap: var(--space-5); }
+.recipe-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }

@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from brewery_config import database_url, web_assets_directory
 from brewery_database.connection import create_database_engine, database_is_ready
+from .recipe_http import install_recipe_routes
 
 
 class HealthResponse(BaseModel):
@@ -39,6 +40,7 @@ def create_app() -> FastAPI:
         docs_url="/api/v1/docs",
         redoc_url=None,
     )
+    install_recipe_routes(application)
 
     @application.get("/health", response_model=HealthResponse)
     def health() -> HealthResponse:
@@ -60,6 +62,7 @@ def create_app() -> FastAPI:
         def index() -> FileResponse:
             return FileResponse(assets / "index.html", headers={
                 "Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff",
+                "Content-Security-Policy": "frame-ancestors 'none'", "X-Frame-Options": "DENY",
             })
 
         application.mount("/assets", StaticFiles(directory=assets / "assets"), name="web-assets")

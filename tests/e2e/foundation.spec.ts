@@ -24,17 +24,18 @@ test('development server refuses secret and backend source files', async ({ requ
 
 async function mockReady(page: Page) {
   await page.route(endpoint, (route) => route.fulfill(ready));
+  await page.route('**/api/v1/recipe-drafts?*', (route) => route.fulfill({ status: 200, json: { items: [], next_offset: null } }));
 }
 
-test('recipe preview is honest, responsive, and accessible', async ({ page }, testInfo) => {
+test('recipe library is honest, responsive, and accessible', async ({ page }, testInfo) => {
   await mockReady(page);
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Recipe library', exact: true })).toBeVisible();
   await expect(page.getByRole('status')).toContainText('Brewing service ready');
-  await expect(page.getByRole('button', { name: 'New recipe' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'New recipe', exact: true })).toBeEnabled();
   await expect(page.getByRole('searchbox', { name: 'Search recipes' })).toBeDisabled();
   await expect(page.getByRole('combobox', { name: 'Filter by style' })).toBeDisabled();
-  await expect(page.getByText('No recipes have been loaded.', { exact: false })).toBeVisible();
+  await expect(page.getByText('Create a draft and start with a name and your notes.', { exact: false })).toBeVisible();
   await expect(page.getByRole('navigation').getByRole('link', { name: 'Recipes' })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('navigation').getByText('Brew day')).toHaveAttribute('aria-disabled', 'true');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -58,7 +59,7 @@ test('checks on load and permits an accessible retry after unavailable response'
   available = true;
   await page.getByRole('button', { name: 'Check connection again' }).click();
   await expect(page.getByRole('status')).toContainText('Brewing service ready');
-  // A healthy service alone cannot enable unimplemented recipe operations.
+  // Readiness alone does not establish that the draft collection can be loaded.
   await expect(page.getByRole('button', { name: 'New recipe' })).toBeDisabled();
 });
 
@@ -148,6 +149,15 @@ test('shared component examples cover enabled, disabled, busy, and invalid state
   await page.getByRole('combobox', { name: 'Beer style' }).selectOption('Custom');
   await expect(page.getByLabel('Selected style')).toHaveText('Custom');
   await expect(page.getByRole('searchbox', { name: 'Search with error' })).toHaveAccessibleDescription('Enter an ingredient name.');
+  await page.getByRole('textbox', { name: 'Example recipe name', exact: true }).fill('Pale ale');
+  await page.getByRole('textbox', { name: 'Example description', exact: true }).fill('Notes');
+  const description = page.getByRole('textbox', { name: 'Example description', exact: true });
+  await description.focus();
+  expect(await description.evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe('none');
+  expect((await description.boundingBox())?.height).toBeGreaterThanOrEqual(48);
+  await expect(page.getByRole('textbox', { name: 'Name with error', exact: true })).toHaveAccessibleDescription('Review this name.');
+  await expect(page.getByRole('textbox', { name: 'Description with error', exact: true })).toHaveAttribute('aria-invalid', 'true');
+  await expect(page.getByRole('textbox', { name: 'Disabled description', exact: true })).toBeDisabled();
   expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath('design-system.png'), fullPage: true });
 });

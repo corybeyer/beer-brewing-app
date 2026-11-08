@@ -2,11 +2,11 @@
 
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--color-background); color: var(--color-text); font-family: var(--font-family-body); font-size: var(--font-size-body); line-height: var(--line-height-body); }
-button, input, select { font: inherit; }
-button, a, input, select { -webkit-tap-highlight-color: transparent; }
+button, input, select, textarea { font: inherit; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 a { color: var(--color-action-hover); text-underline-offset: var(--space-1); }
 a:hover { text-decoration-thickness: var(--border-width); }
-button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, [tabindex='-1']:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex='-1']:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 h1, h2, h3, p { margin: 0; }
 h1, h2, h3 { line-height: var(--line-height-heading); }
 h1 { font-size: var(--font-size-title); letter-spacing: var(--tracking-heading); }

@@ -9,6 +9,7 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    headers: { 'Content-Security-Policy': "frame-ancestors 'none'", 'X-Frame-Options': 'DENY' },
     fs: {
       allow: ['apps/web', 'packages/ui', 'packages/design-system', 'packages/communications', 'node_modules']
         .map((directory) => resolve(workspaceRoot, directory)),
