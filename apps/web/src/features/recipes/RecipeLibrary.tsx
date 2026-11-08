@@ -93,8 +93,10 @@ export function RecipeLibrary({ active = true }: { active?: boolean }) {
         listController.current?.abort(); setListState('ready'); setListError('');
         creationId.current = null; rememberKey(null);
         setItems((old) => [draft, ...old.filter((item) => item.version_id !== draft.version_id)]);
-        setNextOffset((offset) => offset === null ? null : offset + 1);
         show(draft); setNotice('New draft created. Add a name and description when you are ready.');
+        // A retried creation may already be in the loaded page. Reload pagination
+        // from the server instead of assuming every response inserted another row.
+        void refresh();
       });
     }
   }
