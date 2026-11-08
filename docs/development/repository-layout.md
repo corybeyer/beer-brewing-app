@@ -19,7 +19,7 @@ Decision: [ADR-0005](../architecture/decisions/0005-workspace-boundaries.md). Th
 
 Some packages currently contain ownership documentation only. No sensors, domain rules, or generic validation are invented to populate the tree.
 
-Python source mappings in root `pyproject.toml` install `brewery_api`, `brewery_database`, and `brewery_config`. Root npm workspaces expose `@brewery/ui`, `@brewery/design-system`, and `@brewery/communications`; consumers use package exports instead of relative paths across packages. Keep a single root npm lock.
+Python source mappings in root `pyproject.toml` install `brewery_api`, `brewery_database`, `brewery_config`, and `brewery_domain`. Root npm workspaces expose `@brewery/ui`, `@brewery/design-system`, and `@brewery/communications`; consumers use package exports instead of relative paths across packages. Keep a single root npm lock.
 
 Feature CSS arranges shared components using semantic layout/spacing tokens. New colors, fonts, reusable control states, empty states, and icon treatments belong in their shared owners. The repeatable component gallery is `packages/ui/src/examples/Gallery.tsx`; `docs/images/` holds development references. The browser gallery entrypoint is development-only and is not bundled into the product.
 

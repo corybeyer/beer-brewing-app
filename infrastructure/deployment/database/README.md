@@ -6,7 +6,7 @@ M1 infrastructure under [ADR-0004](../../../docs/architecture/decisions/0004-dat
 | --- | --- | --- |
 | `brewery_admin` | Database initialization and explicit provisioning | Bootstrap administrator; never used by the API/migrator |
 | `brewery_migrator` | Alembic and feature grants | CONNECT and ownership of application `public` schema; no superuser, database creation, or role creation |
-| `brewery_app` | API queries and future application data | CONNECT, schema USAGE, SELECT on `alembic_version`; future business-table access requires explicit grants |
+| `brewery_app` | API queries and draft application data | CONNECT, schema USAGE, SELECT on `alembic_version`; `0002_recipe_drafts` explicitly grants restricted draft-table access |
 
 Both non-admin roles have NOINHERIT and no role memberships. PUBLIC database/schema rights are revoked. Future migrations must grant required table and sequence permissions explicitly; PostgreSQL default privileges do not automatically give the application table access. See [PostgreSQL privileges](https://www.postgresql.org/docs/17/ddl-priv.html).
 
@@ -32,13 +32,13 @@ Next change the environment to the migrator's URL and password file, and run:
 .venv/bin/python -m infrastructure.deployment.database.manage migrate
 ```
 
-This upgrades Alembic and grants the application read-only access to migration metadata in one transaction. A failed grant rolls back the upgrade. Use this wrapper for the application deployment; plain Alembic commands are lower-level tools and do not add the runtime metadata grant. `MIGRATION_ROLE` and `APPLICATION_ROLE` can override role names for isolated tests or operator-selected installations.
+This passes the selected application role to owning migrations, upgrades Alembic with explicit feature-table grants, and grants read-only access to migration metadata in one transaction. A failed grant rolls back the upgrade. Use this wrapper for the application deployment; plain Alembic commands are lower-level tools and do not add the runtime metadata grant. `MIGRATION_ROLE` and `APPLICATION_ROLE` can override role names for isolated tests or operator-selected installations.
 
 Start the API with the application's URL/password file. Never run it using the administrator or migration URL.
 
 ## Production adoption and recovery
 
-The production database has not been provisioned by this change. Before adoption, the operator must create the application database and three independent host-held credential files, choose ownership/permissions for the intended container users, and wire only the appropriate read-only mounts into the Pi's separately reviewed Compose configuration. Production passwords stay on the Pi, outside the checkout; they do not need to pass through GitHub Actions. Secure copies used for recovery must follow the chosen backup/retention policy (D-06).
+The installed production database remains at `0001_baseline`. The development recipe migration is not approved for production: [rollout compatibility and backup work](../../../docs/architecture/recipe-draft-storage.md#upgrade-compatibility-and-rollback) is required before merge/deployment. Before adoption, the operator must create the application database and three independent host-held credential files, choose ownership/permissions for the intended container users, and wire only the appropriate read-only mounts into the Pi's separately reviewed Compose configuration. Production passwords stay on the Pi, outside the checkout; they do not need to pass through GitHub Actions. Secure copies used for recovery must follow the chosen backup/retention policy (D-06).
 
 Do not use development credentials in production. File-backed Compose secrets are not an encrypted vault. Restrict parent-directory access and verify access from the intended container UID before deployment.
 

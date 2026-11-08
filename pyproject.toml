@@ -19,9 +19,10 @@ dependencies = [
 test = ["httpx>=0.28,<1"]
 
 [tool.setuptools]
-packages = ["brewery_api", "brewery_database", "brewery_config"]
+packages = ["brewery_api", "brewery_database", "brewery_config", "brewery_domain"]
 
 [tool.setuptools.package-dir]
 brewery_api = "apps/api/brewery_api"
 brewery_database = "packages/database/src/brewery_database"
 brewery_config = "packages/config/src/brewery_config"
+brewery_domain = "packages/domain/src/brewery_domain"

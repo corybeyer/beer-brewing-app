@@ -17,6 +17,7 @@ WORKDIR /srv/brewery
 COPY requirements.lock pyproject.toml ./
 COPY apps/api/ ./apps/api/
 COPY packages/config/ ./packages/config/
+COPY packages/domain/src/ ./packages/domain/src/
 COPY packages/database/src/ ./packages/database/src/
 COPY --from=web-build /build/apps/web/dist/ ./web/
 RUN python -m pip install --no-cache-dir -r requirements.lock \
