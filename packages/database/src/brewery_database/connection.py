@@ -5,7 +5,7 @@ from sqlalchemy.engine import Engine, URL
 from sqlalchemy.exc import SQLAlchemyError
 
 
-SCHEMA_REVISION = "0002_recipe_drafts"
+SCHEMA_REVISION = "0003_fermentable_catalogue"
 
 
 def create_database_engine(url: URL) -> Engine:

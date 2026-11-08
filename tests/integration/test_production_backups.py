@@ -15,6 +15,9 @@ import psycopg
 from sqlalchemy import text
 
 from infrastructure.deployment.production.rollout import Deployment, SQLSession
+from brewery_database.catalogue import PostgresFermentableCatalog
+from brewery_database.connection import SCHEMA_REVISION
+from tests.fixtures.catalogue_support import grain, extract
 from tests.fixtures.postgres_support import PostgreSQLTestCase
 
 
@@ -164,3 +167,26 @@ class ProductionBackupTests(PostgreSQLTestCase):
             self.deployment.backup()
         self.assertEqual(len(list(self.deployment.backups.glob('brewery-*'))), 7)
         self.assertTrue(unrelated.is_dir())
+
+
+    def test_catalogue_sources_components_and_flavors_survive_verified_restore(self):
+        store = PostgresFermentableCatalog(self.engine)
+        store.append(grain())
+        store.append(grain('grain-r2', 'second-grain'))
+        store.append(extract())
+        fingerprint = self.deployment.table_fingerprints
+        restored = []
+        def inspect_restore(database='brewery', query=None):
+            if database.startswith('brew_verify_'):
+                restored.append(database)
+                self.assertEqual(self.deployment.sql("SELECT count(*) FROM fermentable_revision", database), '3')
+                self.assertEqual(self.deployment.sql("SELECT source_label FROM fermentable_revision WHERE id = 'extract-r1'", database), 'Synthetic test data')
+                self.assertEqual(self.deployment.sql("SELECT string_agg(mass_fraction::text, ',' ORDER BY position) FROM fermentable_component WHERE extract_revision_id = 'extract-r1'", database), '0.9,0.1')
+                self.assertEqual(self.deployment.sql("SELECT string_agg(descriptor, ',' ORDER BY position) FROM fermentable_flavor WHERE revision_id = 'extract-r1'", database), 'malty,toasty')
+            return fingerprint(database, query)
+        with patch.object(self.deployment, 'table_fingerprints', side_effect=inspect_restore):
+            backup = self.deployment.backup()
+        self.assertEqual(len(restored), 1)
+        metadata = json.loads((backup / 'metadata.json').read_text())
+        self.assertTrue(metadata['verified'])
+        self.assertEqual(metadata['revision'], SCHEMA_REVISION)
