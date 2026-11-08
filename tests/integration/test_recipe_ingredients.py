@@ -1,8 +1,10 @@
 """Ingredient HTTP edits preserve the complete plan and its revision boundary."""
 from dataclasses import replace
 from decimal import Decimal
+import json
 from uuid import uuid4
 
+from brewery_api.recipe_http import MAX_INGREDIENT_BODY_BYTES
 from brewery_database.recipes import PostgresRecipeDraftStore
 from brewery_domain.recipe_plan import Addition, Ingredient, Step
 from tests.integration.test_recipe_http import PATH, RecipeHTTPTestCase
@@ -79,3 +81,32 @@ class RecipeIngredientTests(RecipeHTTPTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.client.patch(overview, json={'expected_revision': 3, 'name': 'Stale', 'description': None}).status_code, 409)
         self.assertEqual(self.client.get(f"{PATH}/{original['version_id']}").json()['name'], 'Other device')
+
+
+    def test_maximum_unicode_rows_fit_and_oversized_streams_save_nothing(self):
+        draft = self.create().json()
+        endpoint = f"{PATH}/{draft['version_id']}/ingredients"
+        rows = [{'id': f'{index:03}' + '🍺' * 125, 'name': '🌾' * 200,
+                 'category': 'other', 'quantity': '999999999999.999999999999', 'unit': 'US_fl_oz'}
+                for index in range(100)]
+        encoded = json.dumps({'expected_revision': 1, 'ingredients': rows}, ensure_ascii=True).encode()
+        self.assertGreater(len(encoded), 32768)
+        self.assertLess(len(encoded), MAX_INGREDIENT_BODY_BYTES)
+        headers = {'Content-Type': 'application/json'}
+        response = self.client.patch(endpoint, content=encoded, headers=headers)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()['ingredients'], rows)
+        self.assertEqual(self.client.get(endpoint).json(), response.json())
+        for content in (b'x' * (MAX_INGREDIENT_BODY_BYTES + 1),
+                        iter([b'x' * MAX_INGREDIENT_BODY_BYTES, b'x'])):
+            with self.subTest(streamed=not isinstance(content, bytes)):
+                rejected = self.client.patch(endpoint, content=content, headers=headers)
+                self.assertEqual(rejected.status_code, 413)
+                self.assertEqual(rejected.json()['error']['code'], 'request_too_large')
+                self.assertEqual(self.client.get(endpoint).json(), response.json())
+        # The boundary itself is inclusive, including for chunked requests.
+        encoded = json.dumps({'expected_revision': 2, 'ingredients': rows}).encode()
+        at_limit = encoded + b' ' * (MAX_INGREDIENT_BODY_BYTES - len(encoded))
+        accepted = self.client.patch(endpoint, content=iter([at_limit]), headers=headers)
+        self.assertEqual(accepted.status_code, 200, accepted.text)
+        self.assertEqual(accepted.json()['edit_revision'], 3)
