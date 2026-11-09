@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "MassV1": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "maxLength": 26,
+          "pattern": "^(0|[1-9][0-9]{0,12})(\\.[0-9]{1,12})?$",
+          "title": "Amount",
+          "type": "string"
+        },
+        "unit": {
+          "enum": [
+            "g",
+            "kg",
+            "oz",
+            "lb"
+          ],
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "amount",
+        "unit"
+      ],
+      "title": "MassV1",
+      "type": "object"
+    },
+    "RationalV1": {
+      "additionalProperties": false,
+      "properties": {
+        "numerator": {
+          "pattern": "^[0-9]+$",
+          "title": "Numerator",
+          "type": "string"
+        },
+        "denominator": {
+          "pattern": "^[1-9][0-9]*$",
+          "title": "Denominator",
+          "type": "string"
+        }
+      },
+      "required": [
+        "numerator",
+        "denominator"
+      ],
+      "title": "RationalV1",
+      "type": "object"
+    },
+    "YieldV1": {
+      "additionalProperties": false,
+      "properties": {
+        "potential_ppg": {
+          "maxLength": 26,
+          "pattern": "^(0|[1-9][0-9]{0,12})(\\.[0-9]{1,12})?$",
+          "title": "Potential Ppg",
+          "type": "string"
+        },
+        "recovery_fraction": {
+          "maxLength": 26,
+          "pattern": "^(0|[1-9][0-9]{0,12})(\\.[0-9]{1,12})?$",
+          "title": "Recovery Fraction",
+          "type": "string"
+        },
+        "comparison_point": {
+          "enum": [
+            "kettle",
+            "fermenter"
+          ],
+          "title": "Comparison Point",
+          "type": "string"
+        },
+        "provenance": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "pattern": "^[^\\x00]*[^\\x00\\s][^\\x00]*$",
+          "title": "Provenance",
+          "type": "string"
+        }
+      },
+      "required": [
+        "potential_ppg",
+        "recovery_fraction",
+        "comparison_point",
+        "provenance"
+      ],
+      "title": "YieldV1",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "source_mass": {
+      "$ref": "#/$defs/MassV1"
+    },
+    "source_yield": {
+      "$ref": "#/$defs/YieldV1"
+    },
+    "target_yield": {
+      "$ref": "#/$defs/YieldV1"
+    },
+    "amount": {
+      "$ref": "#/$defs/RationalV1"
+    },
+    "unit": {
+      "enum": [
+        "g",
+        "kg",
+        "oz",
+        "lb"
+      ],
+      "title": "Unit",
+      "type": "string"
+    },
+    "gravity_points_gallons": {
+      "$ref": "#/$defs/RationalV1"
+    },
+    "display_amount": {
+      "pattern": "^([0-9]+\\.[0-9]{6}|<0\\.000001)$",
+      "title": "Display Amount",
+      "type": "string"
+    },
+    "display_decimal_places": {
+      "const": 6,
+      "title": "Display Decimal Places",
+      "type": "integer"
+    },
+    "calculation_version": {
+      "const": "gravity-equivalence/v1",
+      "title": "Calculation Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source_mass",
+    "source_yield",
+    "target_yield",
+    "amount",
+    "unit",
+    "gravity_points_gallons",
+    "display_amount",
+    "display_decimal_places",
+    "calculation_version"
+  ],
+  "title": "FermentableConversionResponseV1",
+  "type": "object"
+}

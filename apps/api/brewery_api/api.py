@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from brewery_config import database_url, web_assets_directory
 from brewery_database.connection import create_database_engine, database_is_ready
 from .recipe_http import install_recipe_routes
+from .conversion_http import install_conversion_routes
 
 
 class HealthResponse(BaseModel):
@@ -41,6 +42,7 @@ def create_app() -> FastAPI:
         redoc_url=None,
     )
     install_recipe_routes(application)
+    install_conversion_routes(application)
 
     @application.get("/health", response_model=HealthResponse)
     def health() -> HealthResponse:

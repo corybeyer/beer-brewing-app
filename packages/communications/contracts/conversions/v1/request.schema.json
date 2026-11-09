@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "MassV1": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "maxLength": 26,
+          "pattern": "^(0|[1-9][0-9]{0,12})(\\.[0-9]{1,12})?$",
+          "title": "Amount",
+          "type": "string"
+        },
+        "unit": {
+          "enum": [
+            "g",
+            "kg",
+            "oz",
+            "lb"
+          ],
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "amount",
+        "unit"
+      ],
+      "title": "MassV1",
+      "type": "object"
+    },
+    "YieldV1": {
+      "additionalProperties": false,
+      "properties": {
+        "potential_ppg": {
+          "maxLength": 26,
+          "pattern": "^(0|[1-9][0-9]{0,12})(\\.[0-9]{1,12})?$",
+          "title": "Potential Ppg",
+          "type": "string"
+        },
+        "recovery_fraction": {
+          "maxLength": 26,
+          "pattern": "^(0|[1-9][0-9]{0,12})(\\.[0-9]{1,12})?$",
+          "title": "Recovery Fraction",
+          "type": "string"
+        },
+        "comparison_point": {
+          "enum": [
+            "kettle",
+            "fermenter"
+          ],
+          "title": "Comparison Point",
+          "type": "string"
+        },
+        "provenance": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "pattern": "^[^\\x00]*[^\\x00\\s][^\\x00]*$",
+          "title": "Provenance",
+          "type": "string"
+        }
+      },
+      "required": [
+        "potential_ppg",
+        "recovery_fraction",
+        "comparison_point",
+        "provenance"
+      ],
+      "title": "YieldV1",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "source_mass": {
+      "$ref": "#/$defs/MassV1"
+    },
+    "source_yield": {
+      "$ref": "#/$defs/YieldV1"
+    },
+    "target_yield": {
+      "$ref": "#/$defs/YieldV1"
+    },
+    "target_unit": {
+      "enum": [
+        "g",
+        "kg",
+        "oz",
+        "lb"
+      ],
+      "title": "Target Unit",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source_mass",
+    "source_yield",
+    "target_yield",
+    "target_unit"
+  ],
+  "title": "FermentableConversionRequestV1",
+  "type": "object"
+}

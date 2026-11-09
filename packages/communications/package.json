@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/readiness.ts",
-    "./recipes": "./src/recipes.ts"
+    "./recipes": "./src/recipes.ts",
+    "./conversions": "./src/conversions.ts"
   }
 }

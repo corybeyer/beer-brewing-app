@@ -18,6 +18,7 @@ Start here before planning or implementing a feature. This knowledge base combin
 | [Recipe-plan rules](requirements/recipe-plan-validation.md) | First M2 domain slice: version-local references, combined graph validation, and ingredient portions |
 | [Conversion proposal snapshots](requirements/conversion-proposal-snapshots.md) | Immutable C2b domain inputs, exact evidence, and review-time stale checks; persistence remains future work |
 | [Extract conversion plan](plan/extract-conversion.md) | Sourced formulas, calculator assumptions, grain-match picker, delivery slices, and verification cases |
+| [Standalone conversion calculator](requirements/conversion-calculator.md) | Explicit C1 calculator inputs, exact API results, and responsive advisory UI |
 | [Recipe draft storage](architecture/recipe-draft-storage.md) | Development recipe schema, transactions, concurrency, and guarded migration rollout |
 | [Fermentable catalogue storage](architecture/fermentable-catalogue.md) | Immutable sourced grain/DME/LME profiles, exact compositions, catalogue migration, and rollout |
 | [Architecture](architecture/system-overview.md) | Components, [dependency boundaries](architecture/dependency-rules.md), [target data model](architecture/data-model.md), and deployment topology |

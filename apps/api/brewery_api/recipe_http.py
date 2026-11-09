@@ -104,12 +104,12 @@ def error_response(status, code, message, issues=()):
 
 class RecipeRequestBoundary:
     """Local host/origin checks and bounded JSON input, before endpoint parsing."""
-    def __init__(self, app, trusted_hosts):
-        self.app, self.trusted_hosts = app, trusted_hosts
+    def __init__(self, app, trusted_hosts, prefix=PREFIX):
+        self.app, self.trusted_hosts, self.prefix = app, trusted_hosts, prefix
 
     async def __call__(self, scope, receive, send):
         path = scope.get('path', '')
-        if scope['type'] != 'http' or not (path == PREFIX or path.startswith(PREFIX + '/')):
+        if scope['type'] != 'http' or not (path == self.prefix or path.startswith(self.prefix + '/')):
             return await self.app(scope, receive, send)
         headers = {key.decode().lower(): value.decode('latin-1') for key, value in scope['headers']}
 
@@ -146,7 +146,7 @@ class RecipeRequestBoundary:
             return await reject(403, 'forbidden', 'Open the companion using its local hostname or address.')
 
         if scope['method'] in ('POST', 'PATCH'):
-            body_limit = MAX_INGREDIENT_BODY_BYTES if path.endswith('/ingredients') else MAX_BODY_BYTES
+            body_limit = MAX_INGREDIENT_BODY_BYTES if self.prefix == PREFIX and path.endswith('/ingredients') else MAX_BODY_BYTES
             if headers.get('content-type', '').split(';')[0].lower() != 'application/json':
                 return await reject(415, 'unsupported_media_type', 'Recipe changes require JSON.')
             try:

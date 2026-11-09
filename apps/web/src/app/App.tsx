@@ -4,6 +4,7 @@ import type { ServiceState } from '@brewery/communications';
 import { Badge, Button, Card, PageHeading } from '@brewery/ui';
 import { Icon } from '@brewery/design-system/icons';
 import { RecipeLibrary } from '../features/recipes/RecipeLibrary';
+import { ConversionCalculator } from '../features/calculators/ConversionCalculator';
 import './App.css';
 
 function subscribe(callback: () => void) {
@@ -50,7 +51,7 @@ function NotFound() {
   return <Card className="content-card"><h1 id="page-title" tabIndex={-1}>Page not found</h1><p className="muted">That page isn’t part of your brewing companion yet.</p><a className="text-link" href="#/recipes">Back to recipes<Icon name="arrow" /></a></Card>;
 }
 
-const titles: Record<string, string> = { '#/recipes': 'Recipe library', '#/home': 'Home', '#/settings': 'Settings' };
+const titles: Record<string, string> = { '#/recipes': 'Recipe library', '#/home': 'Home', '#/settings': 'Settings', '#/calculators': 'Calculators' };
 
 export function App() {
   const route = useSyncExternalStore(subscribe, routeSnapshot);
@@ -76,13 +77,14 @@ export function App() {
         <a href="#/recipes" aria-current={route === '#/recipes' ? 'page' : undefined}><Icon name="book" />Recipes</a>
         <span aria-disabled="true" title="Brew days are not available yet"><Icon name="flask" />Brew day</span>
         <span aria-disabled="true" title="Batch history is not available yet"><Icon name="clipboard" />Batches</span>
+        <a href="#/calculators" aria-current={route === '#/calculators' ? 'page' : undefined}><Icon name="flask" />Calculators</a>
         <a href="#/settings" aria-current={route === '#/settings' ? 'page' : undefined}><Icon name="settings" />Settings</a>
       </div></nav>
     </header>
     <main id="main-content" tabIndex={-1} className="app-main">
       <Connection {...service} />
       <div hidden={route !== '#/recipes'}><RecipeLibrary active={route === '#/recipes'} /></div>
-      {route === '#/recipes' ? null : route === '#/home' ? <Home /> : route === '#/settings' ? <Settings /> : <NotFound />}
+      {route === '#/recipes' ? null : route === '#/home' ? <Home /> : route === '#/settings' ? <Settings /> : route === '#/calculators' ? <ConversionCalculator /> : <NotFound />}
     </main>
     <footer className="app-footer"><span><Icon name="wheat" />Made for the way you brew.</span><span>Plan thoughtfully. Brew manually. Keep learning.</span></footer>
   </>;
