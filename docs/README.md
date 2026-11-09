@@ -17,6 +17,7 @@ Start here before planning or implementing a feature. This knowledge base combin
 | [Requirements](requirements/README.md) | Product behavior, integrity rules, and acceptance scenarios |
 | [Recipe-plan rules](requirements/recipe-plan-validation.md) | First M2 domain slice: version-local references, combined graph validation, and ingredient portions |
 | [Conversion proposal snapshots](requirements/conversion-proposal-snapshots.md) | Immutable C2b domain inputs, exact evidence, and review-time stale checks; persistence remains future work |
+| [Grain matching and sizing](requirements/fermentable-matching.md) | First C3 domain candidates, provenance-specific composition labels, exact selected-blend sizing, and explicit missing-data review |
 | [Extract conversion plan](plan/extract-conversion.md) | Sourced formulas, calculator assumptions, grain-match picker, delivery slices, and verification cases |
 | [Recipe draft storage](architecture/recipe-draft-storage.md) | Development recipe schema, transactions, concurrency, and guarded migration rollout |
 | [Fermentable catalogue storage](architecture/fermentable-catalogue.md) | Immutable sourced grain/DME/LME profiles, exact compositions, catalogue migration, and rollout |
