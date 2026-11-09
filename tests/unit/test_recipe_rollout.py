@@ -5,7 +5,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
-from infrastructure.deployment.production.rollout import BASELINE, RECIPES, CATALOGUE, Deployment
+from infrastructure.deployment.production.rollout import BASELINE, RECIPES, CATALOGUE, PROPOSALS, Deployment
 
 
 class RecipeRolloutTests(unittest.TestCase):
@@ -128,6 +128,46 @@ class RecipeRolloutTests(unittest.TestCase):
                 deployment = self.deployment(root, previous=CATALOGUE)
                 with (
                     patch.object(deployment, 'command', side_effect=self.contracts(target=target, previous=CATALOGUE)),
+                    patch.object(deployment, 'revision', return_value=current),
+                    patch.object(deployment, 'compose') as compose,
+                    patch.object(deployment, 'backup') as backup,
+                ):
+                    with self.assertRaises(ValueError):
+                        deployment.deploy_images('app', 'operator')
+                backup.assert_not_called()
+                self.assertFalse(any('migrate' in call.args for call in compose.call_args_list))
+                self.assertEqual((root / '.env').read_text(), 'retained environment')
+
+
+    def test_catalogue_to_proposals_upgrade_backs_up_and_records_new_schema(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            deployment = self.deployment(root, previous=CATALOGUE)
+            order = []
+            with (
+                patch.object(deployment, 'command', side_effect=self.contracts(target=PROPOSALS, previous=CATALOGUE)),
+                patch.object(deployment, 'revision', side_effect=[CATALOGUE, PROPOSALS]),
+                patch.object(deployment, 'compose', side_effect=lambda *args: order.append(args)),
+                patch.object(deployment, 'backup', side_effect=lambda: order.append(('backup',))),
+                patch.object(deployment, 'validate_service'),
+            ):
+                deployment.deploy_images('app', 'operator')
+            self.assertLess(order.index(('backup',)), order.index(('run', '--rm', '--no-deps', 'migrate')))
+            self.assertEqual(json.loads((root / 'state.json').read_text())['schema'], PROPOSALS)
+
+    def test_proposal_failure_uses_only_schema_compatible_recovery(self):
+        self.failure_case(CATALOGUE, CATALOGUE, PROPOSALS, legacy=True, failing='candidate', target=PROPOSALS)
+        self.failure_case(PROPOSALS, PROPOSALS, PROPOSALS, legacy=False, failing='brewery', target=PROPOSALS)
+
+    def test_proposal_reverse_unknown_and_mismatched_pairs_stop_before_backup(self):
+        for target, current, operator in ((CATALOGUE, PROPOSALS, CATALOGUE), (RECIPES, PROPOSALS, RECIPES),
+                                          (BASELINE, PROPOSALS, BASELINE), (PROPOSALS, '0005_unknown', PROPOSALS),
+                                          (PROPOSALS, CATALOGUE, CATALOGUE)):
+            with self.subTest(target=target, current=current, operator=operator), TemporaryDirectory() as directory:
+                root = Path(directory)
+                deployment = self.deployment(root, previous=PROPOSALS)
+                with (
+                    patch.object(deployment, 'command', side_effect=self.contracts(target=target, previous=PROPOSALS, operator=operator)),
                     patch.object(deployment, 'revision', return_value=current),
                     patch.object(deployment, 'compose') as compose,
                     patch.object(deployment, 'backup') as backup,

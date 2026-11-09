@@ -15,12 +15,49 @@ from infrastructure.deployment.production.rollout import Deployment
 ROOT = Path(__file__).resolve().parents[2]
 
 
+PROPOSAL_FIXTURE = r"""
+from dataclasses import replace
+from datetime import datetime, timezone
+from decimal import Decimal
+from fractions import Fraction
+from brewery_config import database_url
+from brewery_database.connection import create_database_engine
+from brewery_database.catalogue import PostgresFermentableCatalog
+from brewery_database.recipes import PostgresRecipeDraftStore
+from brewery_database.proposals import PostgresConversionProposalStore
+from brewery_domain.recipe_plan import Ingredient, RecipePlan, Step, Addition
+from brewery_domain.recipes import RecipeDraft
+from brewery_domain.conversion_proposals import ConversionProposal, IngredientConversion
+from brewery_domain.extract_conversion import Mass, FermentableYield, convert_fermentable
+engine = create_database_engine(database_url())
+source = Ingredient('extract', 'proposal-version', Decimal('3'), 'lb', 'Synthetic DME', 'other')
+original = PostgresRecipeDraftStore(engine).create(RecipeDraft('proposal-recipe', 1,
+    RecipePlan('proposal-version', (source,), (Step('mash', 'proposal-version'),),
+        (Addition('proposal-version', 'mash', 'extract', Decimal('1.5'), 'lb'),)), 'Synthetic conversion'))
+profile = PostgresFermentableCatalog(engine).load('rollout-grain-v1')
+result = convert_fermentable(Mass(Decimal('3'), 'lb'),
+    FermentableYield(Decimal('45'), Decimal('1'), 'kettle', 'Synthetic DME assumption'),
+    FermentableYield(Decimal('37'), Decimal('.75'), 'kettle', 'Synthetic grain and recovery'), 'lb')
+target = Ingredient('grain', 'proposal-version', Decimal('4.865'), 'lb', 'Synthetic grain', 'grain')
+proposed = replace(original.draft, plan=replace(original.draft.plan, ingredients=(target,),
+    additions=(Addition('proposal-version', 'mash', 'grain', Decimal('2.4325'), 'lb'),)))
+value = ConversionProposal('rollout-proposal', datetime(2026,11,9,tzinfo=timezone.utc), original,
+    proposed, (profile,), (IngredientConversion('extract', 'grain', profile.revision_id, result,
+        source_potential_override='Synthetic source potential', weighing_note='Round total to .001 lb'),))
+store = PostgresConversionProposalStore(engine)
+store.append(value)
+assert store.load(value.id) == value
+assert store.load(value.id).conversions[0].result.amount == Fraction(180,37)
+engine.dispose()
+"""
+
+
 def main():
     subprocess.run(['/usr/bin/docker', 'info', '--format', '{{.Architecture}}'],
                    check=True, capture_output=True)
     project = 'brewery-rollout-' + uuid.uuid4().hex[:12]
     tags = {name: project + ':' + name for name in
-            ('app', 'operator', 'smoke', 'broken', 'recipe-app', 'recipe-operator', 'broken-recipe', 'baseline-app', 'baseline-operator')}
+            ('app', 'operator', 'smoke', 'broken', 'recipe-app', 'recipe-operator', 'broken-recipe', 'baseline-app', 'baseline-operator', 'catalogue-app', 'catalogue-operator', 'broken-catalogue')}
     with tempfile.TemporaryDirectory(prefix='brewery-rollout-') as directory:
         root = Path(directory)
         (root / 'secrets').mkdir(mode=0o700)
@@ -42,13 +79,24 @@ def main():
                 f'FROM {tags["app"]}\nENV WEB_ASSETS_DIRECTORY=/nonexistent\n').encode())
             # Fixtures reproduce reviewed earlier readiness/migration contracts.
             # They are synthetic fixtures, not previously published images.
-            deployment.command('build', '-t', tags['recipe-app'], '-', input=(
+            deployment.command('build', '-t', tags['catalogue-app'], '-', input=(
                 f'FROM {tags["app"]}\nUSER root\n'
+                'RUN python -c "from pathlib import Path; import brewery_database.connection as c; '
+                'p=Path(c.__file__); p.write_text(p.read_text().replace(\'0004_conversion_proposals\', \'0003_fermentable_catalogue\'))"\n'
+                'USER brewery\n').encode())
+            deployment.command('build', '-t', tags['catalogue-operator'], '-', input=(
+                f'FROM {tags["operator"]}\nUSER root\n'
+                'RUN rm /srv/brewery/packages/database/migrations/versions/0004_conversion_proposals.py\n'
+                'USER brewery\n').encode())
+            deployment.command('build', '-t', tags['broken-catalogue'], '-', input=(
+                f'FROM {tags["catalogue-app"]}\nENV WEB_ASSETS_DIRECTORY=/nonexistent\n').encode())
+            deployment.command('build', '-t', tags['recipe-app'], '-', input=(
+                f'FROM {tags["catalogue-app"]}\nUSER root\n'
                 'RUN python -c "from pathlib import Path; import brewery_database.connection as c; '
                 'p=Path(c.__file__); p.write_text(p.read_text().replace(\'0003_fermentable_catalogue\', \'0002_recipe_drafts\'))"\n'
                 'USER brewery\n').encode())
             deployment.command('build', '-t', tags['recipe-operator'], '-', input=(
-                f'FROM {tags["operator"]}\nUSER root\n'
+                f'FROM {tags["catalogue-operator"]}\nUSER root\n'
                 'RUN rm /srv/brewery/packages/database/migrations/versions/0003_fermentable_catalogue.py\n'
                 'USER brewery\n').encode())
             deployment.command('build', '-t', tags['broken-recipe'], '-', input=(
@@ -115,7 +163,7 @@ def main():
                                'engine.dispose()')
             print('RUN: fail recipe-to-catalogue candidate, retain smoke fallback, then adopt catalogue API', flush=True)
             try:
-                deployment.deploy_images(tags['broken'], tags['operator'])
+                deployment.deploy_images(tags['broken-catalogue'], tags['catalogue-operator'])
             except subprocess.CalledProcessError:
                 pass
             else:
@@ -130,7 +178,7 @@ def main():
                 assert response.code == 404
             else:
                 raise RuntimeError('Incompatible recipe API was not replaced by retained smoke service')
-            deployment.deploy_images(tags['app'], tags['operator'])
+            deployment.deploy_images(tags['catalogue-app'], tags['catalogue-operator'])
             deployment.compose('exec', '-T', 'brewery', 'python', '-c',
                 'from datetime import datetime, timezone; from decimal import Decimal; '
                 'from brewery_config import database_url; '
@@ -147,6 +195,33 @@ def main():
                 'composition_status="manual_assumption",composition_note="Synthetic bill",'
                 'components=(GrainComponent("rollout-grain-v1",Decimal("1")),),flavor_tags=("toasty",))); '
                 'assert store.load("rollout-extract-v1").components[0].mass_fraction == Decimal("1"); engine.dispose()')
+            print('RUN: reject catalogue-to-recipe downgrade before proposal migration', flush=True)
+            try:
+                deployment.deploy_images(tags['recipe-app'], tags['recipe-operator'])
+            except ValueError:
+                pass
+            else:
+                raise RuntimeError('Reverse catalogue transition unexpectedly accepted')
+            deployment.validate_service('brewery')
+            print('RUN: fail catalogue-to-proposal candidate, retain smoke, then adopt proposal API', flush=True)
+            try:
+                deployment.deploy_images(tags['broken'], tags['operator'])
+            except subprocess.CalledProcessError:
+                pass
+            else:
+                raise RuntimeError('Broken proposal upgrade unexpectedly deployed')
+            assert deployment.revision() == '0004_conversion_proposals'
+            assert not (root / 'state.json').exists()
+            with urlopen('http://127.0.0.1:' + port + '/health', timeout=5) as response:
+                assert response.status == 200
+            try:
+                urlopen('http://127.0.0.1:' + port + '/', timeout=5)
+            except HTTPError as response:
+                assert response.code == 404
+            else:
+                raise RuntimeError('Incompatible catalogue API was not replaced by retained smoke')
+            deployment.deploy_images(tags['app'], tags['operator'])
+            deployment.compose('exec', '-T', 'brewery', 'python', '-c', PROPOSAL_FIXTURE)
             backup = deployment.backup()
             assert json.loads((backup / 'metadata.json').read_text())['verified'] is True
             assert json.loads((backup / 'metadata.json').read_text())['consistency'] == 'exported-snapshot'
@@ -161,9 +236,9 @@ def main():
                 raise RuntimeError('Broken candidate unexpectedly deployed')
             deployment.validate_service('brewery')
             assert deployment.sql('SELECT note FROM rollout_fixture') == 'retained through rollout and restore'
-            print('RUN: reject catalogue-to-recipe downgrade without changing production', flush=True)
+            print('RUN: reject proposal-to-catalogue downgrade without changing production', flush=True)
             try:
-                deployment.deploy_images(tags['recipe-app'], tags['recipe-operator'])
+                deployment.deploy_images(tags['catalogue-app'], tags['catalogue-operator'])
             except ValueError:
                 pass
             else:
@@ -184,8 +259,18 @@ def main():
             assert deployment.sql("SELECT name FROM recipe_version WHERE id = 'rollout-version'") == 'Retained draft'
             assert deployment.sql("SELECT count(*) FROM fermentable_component WHERE extract_revision_id = 'rollout-extract-v1'") == '1'
             assert deployment.sql("SELECT descriptor FROM fermentable_flavor WHERE revision_id = 'rollout-grain-v1'") == 'malty'
+            deployment.compose('exec', '-T', 'brewery', 'python', '-c',
+                'from brewery_config import database_url; '
+                'from brewery_database.connection import create_database_engine; '
+                'from brewery_database.proposals import PostgresConversionProposalStore; '
+                'from fractions import Fraction; '
+                'engine=create_database_engine(database_url()); '
+                'value=PostgresConversionProposalStore(engine).load("rollout-proposal"); '
+                'assert value.conversions[0].result.amount == Fraction(180,37); '
+                'assert value.original.draft.plan.ingredients[0].quantity != value.proposed.plan.ingredients[0].quantity; '
+                'engine.dispose()')
             assert not deployment.sql("SELECT datname FROM pg_database WHERE datname LIKE 'brew_verify_%'", 'postgres')
-            print('PASS: baseline-to-recipe-to-catalogue migration, populated catalogue snapshot restore, incompatible/compatible recovery, '
+            print('PASS: baseline-to-recipe-to-catalogue-to-proposal migration, populated proposal snapshot restore, incompatible/compatible recovery, '
                   'reverse-transition rejection, and retained-data re-adoption', flush=True)
         finally:
             try:

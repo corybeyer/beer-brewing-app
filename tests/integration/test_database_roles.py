@@ -155,3 +155,21 @@ class DatabaseRoleTests(PostgreSQLTestCase):
                               'DELETE FROM fermentable_component', 'DROP TABLE fermentable_revision'):
                 with self.subTest(statement=statement), self.assertRaises(psycopg.errors.InsufficientPrivilege):
                     app.execute(statement)
+
+
+    def test_runtime_proposal_history_is_append_only(self):
+        from brewery_database.proposals import PostgresConversionProposalStore
+        from tests.fixtures.proposal_support import seed_proposal
+        self.migrate_as_owner()
+        engine = create_engine(self.url.set(username=self.application, password=self.application_password))
+        self.addCleanup(engine.dispose)
+        value = seed_proposal(engine)
+        store = PostgresConversionProposalStore(engine)
+        self.assertEqual(store.append(value), value)
+        self.assertEqual(store.load(value.id), value)
+        with self.connect_as(self.application, self.application_password) as app:
+            for statement in ("UPDATE conversion_proposal SET format_version = 'rewrite'", 'DELETE FROM conversion_proposal',
+                              'DROP TABLE conversion_proposal', 'ALTER TABLE conversion_proposal ADD COLUMN forbidden text'):
+                with self.subTest(statement=statement), self.assertRaises(psycopg.errors.InsufficientPrivilege):
+                    app.execute(statement)
+        self.assertEqual(store.load(value.id), value)

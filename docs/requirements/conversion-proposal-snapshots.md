@@ -1,6 +1,6 @@
 # Conversion proposal domain snapshots
 
-C2b first slice, supporting M2/UI-04/UI-05 and M6 reviewed adaptations (AC-01/AC-02/AC-13; domain evidence toward CV-08/CV-09). [Proposed ADR-0013](../architecture/decisions/0013-conversion-proposal-snapshots.md) records the boundary. Durable retention, transactional concurrency, and CV-12 proposal-schema verification remain future work.
+C2b, supporting M2/UI-04/UI-05 and M6 reviewed adaptations (AC-01/AC-02/AC-13; domain evidence toward CV-08/CV-09). [Proposed ADR-0013](../architecture/decisions/0013-conversion-proposal-snapshots.md) records the initial domain boundary. [Transactional retention](../architecture/conversion-proposal-storage.md) is now in development under proposed ADR-0014; proposal Apply and full CV-12 release verification remain separate work.
 
 ## Values and capture
 
@@ -24,7 +24,9 @@ Preserve addition count, order, and step links; remap the ingredient link for th
 
 `require_current_proposal(proposal, current)` validates the proposal and compares the complete original draft and edit revision to a freshly loaded `StoredDraft`. Missing, different, or edited drafts raise `StaleConversionProposal`. This is a review-time check. A change after the check remains possible; a future retention/apply adapter must repeat the check inside its transaction and save nothing on conflict. The pure helper supplies no concurrent-write or durable-restart guarantee.
 
-The next C2b slice owns schema, append/load retention, restricted grants, migration/restore evidence, and deployment compatibility. C3/C4 own matching, blend/ranking generation, mash/boil/hop review, versioned API errors, picker/preview, explicit Apply, and transactionally safe recipe changes. This first format is intentionally limited to C1 one-to-one substitutions; extend/version it explicitly for blends or step adaptation. A valid snapshot does not establish flavor equivalence, mash feasibility, publication readiness, or any performed physical action.
+The pure `ConversionProposalStore` append/load port now has a PostgreSQL retention adapter in development. It locks and compares the current draft inside the insert transaction, checks authoritative product copies, and saves a self-contained historical document. This supplies save-time coherence; it does not authorize a later Apply. See the [owning storage specification](../architecture/conversion-proposal-storage.md) for format, grants, migration/restore, and release requirements.
+
+C3/C4 own matching, blend/ranking generation, mash/boil/hop review, versioned API errors, picker/preview, explicit Apply, and transactionally safe recipe changes. This first format is intentionally limited to C1 one-to-one substitutions; extend/version it explicitly for blends or step adaptation. A valid snapshot does not establish flavor equivalence, mash feasibility, publication readiness, or any performed physical action.
 
 ## Verification
 

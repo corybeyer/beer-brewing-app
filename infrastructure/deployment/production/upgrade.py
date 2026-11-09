@@ -15,6 +15,7 @@ else:
 
 PREDECESSOR_SHA256 = 'b57b58d514554d870f8271d0a9d585b918f41cf2c965938ea5e1f358a1b8293d'
 RECIPE_PREDECESSOR_SHA256 = '545c7bcf971327a054981c6bbdd6c228f5b048808d147d13f3a68bb1e04790f4'
+CATALOGUE_PREDECESSOR_SHA256 = 'ed1e827d15a6cfebc9a736d26e6aba33ddd3f2d2314a8415deb1861dcde4ec9a'
 COMPOSE_SHA256 = '55b973731a6e589d8369b5a2877f5edae54f5fdf5a7acd3bbdf1ca53c0e18fc6'
 
 
@@ -80,7 +81,7 @@ def upgrade_operations(host, binaries, source, commit):
     with deployment.locked():
         original = (runtime / 'rollout.py').read_text()
         original_hash = hashlib.sha256(original.encode()).hexdigest()
-        if original_hash not in (PREDECESSOR_SHA256, RECIPE_PREDECESSOR_SHA256, target_hash):
+        if original_hash not in (PREDECESSOR_SHA256, RECIPE_PREDECESSOR_SHA256, CATALOGUE_PREDECESSOR_SHA256, target_hash):
             raise ValueError('Installed operations have an unknown predecessor; stop for administrator review.')
         history = runtime / 'operations-history'
         if not history.exists():
