@@ -21,7 +21,7 @@ test('calculator starts blank, requires explicit assumptions, and displays the A
   await expect(page.getByLabel('Source amount', { exact: true })).toHaveValue('');
   await expect(page.getByLabel('Source potential (PPG)', { exact: true })).toHaveValue('');
   await expect(page.getByLabel('Target recovery fraction', { exact: true })).toHaveValue('');
-  await expect(page.getByLabel('Comparison point for both sides', { exact: true })).toHaveValue('');
+  await expect(page.getByRole('combobox', { name: 'Comparison point for both sides', exact: true })).toHaveValue('');
   await page.getByRole('button', { name: 'Calculate conversion', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('Choose the comparison point');
   expect(posted).toBeUndefined();
