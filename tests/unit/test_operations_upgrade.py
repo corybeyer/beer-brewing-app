@@ -119,3 +119,14 @@ class OperationsUpgradeTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 upgrade.verify_checkout(SOURCE, '--help')
             command.assert_not_called()
+
+
+    def test_known_recipe_operations_predecessor_preserves_installed_state(self):
+        original = '# fixture for the reviewed recipe-schema deployer\n'
+        (self.runtime / 'rollout.py').write_text(original)
+        digest = hashlib.sha256(original.encode()).hexdigest()
+        before = self.preserved()
+        with patch.object(upgrade, 'RECIPE_PREDECESSOR_SHA256', digest):
+            self.update()
+        self.assertEqual(self.preserved(), before)
+        self.assertEqual((self.runtime / 'operations-history' / f'rollout-{digest}.py').read_text(), original)

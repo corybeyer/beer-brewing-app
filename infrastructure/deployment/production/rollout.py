@@ -21,7 +21,13 @@ import uuid
 REPOSITORY = 'ghcr.io/corybeyer/beer-brewing-app'
 BASELINE = '0001_baseline'
 RECIPES = '0002_recipe_drafts'
-SUPPORTED_REVISIONS = {BASELINE, RECIPES}
+CATALOGUE = '0003_fermentable_catalogue'
+FORWARD_REVISIONS = {
+    BASELINE: {'', BASELINE},
+    RECIPES: {'', BASELINE, RECIPES},
+    CATALOGUE: {'', BASELINE, RECIPES, CATALOGUE},
+}
+SUPPORTED_REVISIONS = set(FORWARD_REVISIONS)
 DATA_VOLUME = 'brewery-production-postgres'
 
 
@@ -282,7 +288,7 @@ class Deployment:
             self.write_environment(application, operator)
             self.compose('up', '-d', '--wait', '--wait-timeout', '120', 'database')
             original_revision = self.revision()
-            permitted = {'', BASELINE} if schema == BASELINE else {'', BASELINE, RECIPES}
+            permitted = FORWARD_REVISIONS[schema]
             if original_revision not in permitted:
                 raise ValueError('Existing database revision requires a reviewed compatibility decision')
             self.compose('run', '--rm', '--no-deps', 'provision')

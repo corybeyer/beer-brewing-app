@@ -18,6 +18,7 @@ Start here before planning or implementing a feature. This knowledge base combin
 | [Recipe-plan rules](requirements/recipe-plan-validation.md) | First M2 domain slice: version-local references, combined graph validation, and ingredient portions |
 | [Extract conversion plan](plan/extract-conversion.md) | Sourced formulas, calculator assumptions, grain-match picker, delivery slices, and verification cases |
 | [Recipe draft storage](architecture/recipe-draft-storage.md) | Development recipe schema, transactions, concurrency, and guarded migration rollout |
+| [Fermentable catalogue storage](architecture/fermentable-catalogue.md) | Immutable sourced grain/DME/LME profiles, exact compositions, catalogue migration, and rollout |
 | [Architecture](architecture/system-overview.md) | Components, [dependency boundaries](architecture/dependency-rules.md), [target data model](architecture/data-model.md), and deployment topology |
 | [Backend foundation](architecture/backend-foundation.md) | PostgreSQL development stack, migrations, health contracts, and tests |
 | [Development](development/README.md) | Workspace setup, [package ownership](development/repository-layout.md), frontend gallery, and categorized tests |

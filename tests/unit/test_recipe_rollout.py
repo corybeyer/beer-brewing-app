@@ -5,7 +5,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
-from infrastructure.deployment.production.rollout import BASELINE, RECIPES, Deployment
+from infrastructure.deployment.production.rollout import BASELINE, RECIPES, CATALOGUE, Deployment
 
 
 class RecipeRolloutTests(unittest.TestCase):
@@ -49,7 +49,7 @@ class RecipeRolloutTests(unittest.TestCase):
     def test_unknown_result_after_migration_uses_legacy(self):
         self.failure_case(BASELINE, BASELINE, RuntimeError('database unavailable'), legacy=True, failing='candidate')
 
-    def failure_case(self, previous, before, after, legacy, failing):
+    def failure_case(self, previous, before, after, legacy, failing, target=RECIPES):
         with TemporaryDirectory() as directory:
             root = Path(directory)
             deployment = self.deployment(root, previous)
@@ -63,7 +63,7 @@ class RecipeRolloutTests(unittest.TestCase):
             # Unknown result is encountered both on post-migrate check and recovery.
             revisions = [before, after, after]
             with (
-                patch.object(deployment, 'command', side_effect=self.contracts(previous=previous)),
+                patch.object(deployment, 'command', side_effect=self.contracts(target=target, previous=previous)),
                 patch.object(deployment, 'revision', side_effect=revisions),
                 patch.object(deployment, 'compose') as compose,
                 patch.object(deployment, 'backup'),
@@ -99,3 +99,41 @@ class RecipeRolloutTests(unittest.TestCase):
                     backup.assert_not_called()
                     self.assertFalse(any('migrate' in call.args for call in compose.call_args_list))
                     self.assertEqual((root / '.env').read_text(), 'retained environment')
+
+
+    def test_recipe_to_catalogue_upgrade_backs_up_and_records_new_schema(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            deployment = self.deployment(root, previous=RECIPES)
+            order = []
+            with (
+                patch.object(deployment, 'command', side_effect=self.contracts(target=CATALOGUE, previous=RECIPES)),
+                patch.object(deployment, 'revision', side_effect=[RECIPES, CATALOGUE]),
+                patch.object(deployment, 'compose', side_effect=lambda *args: order.append(args)),
+                patch.object(deployment, 'backup', side_effect=lambda: order.append(('backup',))),
+                patch.object(deployment, 'validate_service'),
+            ):
+                deployment.deploy_images('app', 'operator')
+            self.assertLess(order.index(('backup',)), order.index(('run', '--rm', '--no-deps', 'migrate')))
+            self.assertEqual(json.loads((root / 'state.json').read_text())['schema'], CATALOGUE)
+
+    def test_catalogue_failure_uses_only_schema_compatible_recovery(self):
+        self.failure_case(RECIPES, RECIPES, CATALOGUE, legacy=True, failing='candidate', target=CATALOGUE)
+        self.failure_case(CATALOGUE, CATALOGUE, CATALOGUE, legacy=False, failing='brewery', target=CATALOGUE)
+
+    def test_catalogue_reverse_and_unknown_revisions_are_rejected_before_backup(self):
+        for target, current in ((RECIPES, CATALOGUE), (BASELINE, CATALOGUE), (CATALOGUE, '0004_unknown')):
+            with self.subTest(target=target, current=current), TemporaryDirectory() as directory:
+                root = Path(directory)
+                deployment = self.deployment(root, previous=CATALOGUE)
+                with (
+                    patch.object(deployment, 'command', side_effect=self.contracts(target=target, previous=CATALOGUE)),
+                    patch.object(deployment, 'revision', return_value=current),
+                    patch.object(deployment, 'compose') as compose,
+                    patch.object(deployment, 'backup') as backup,
+                ):
+                    with self.assertRaises(ValueError):
+                        deployment.deploy_images('app', 'operator')
+                backup.assert_not_called()
+                self.assertFalse(any('migrate' in call.args for call in compose.call_args_list))
+                self.assertEqual((root / '.env').read_text(), 'retained environment')

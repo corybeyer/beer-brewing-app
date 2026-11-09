@@ -21,7 +21,8 @@ class PostgreSQLTests(PostgreSQLTestCase):
             self.assertEqual(connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one(), SCHEMA_REVISION)
             tables = connection.execute(text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")).scalars().all()
             self.assertEqual(set(tables), {"alembic_version", "recipe", "recipe_version", "recipe_ingredient",
-                                           "recipe_step", "recipe_step_dependency", "recipe_step_addition"})
+                                           "recipe_step", "recipe_step_dependency", "recipe_step_addition",
+                                           "fermentable_product", "fermentable_revision", "fermentable_flavor", "fermentable_component"})
         with TestClient(create_app()) as client:
             response = client.get("/api/v1/readiness")
             self.assertEqual(response.status_code, 200)

@@ -409,3 +409,8 @@ erDiagram
 - [Acceptance scenarios and validation rules](../requirements/acceptance-scenarios.md)
 - [Current implementation status](../plan/status.md)
 - [Source provenance](../references/README.md)
+
+
+## Catalogue storage extension
+
+The C2a development slice adds a separate [sourced fermentable catalogue](fermentable-catalogue.md) under proposed ADR-0012. Its four tables store product identities, immutable profile/source revisions, flavor descriptors, and grain-only composition links. They are independent of the target recipe/batch ERDs above; no recipe-to-catalogue or conversion-proposal snapshot relationship is implemented yet. Consult the owning storage specification and migration for current SQL rather than treating this target diagram as deployed schema evidence.

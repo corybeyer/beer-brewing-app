@@ -65,3 +65,6 @@ Tests cover configuration rejection, secret generation/non-overwrite behavior, h
 Before future production adoption, verify a logical backup/restore, choose backup location and retention (D-06), provision the separate roles and host-held secret mounts, and perform a controlled ARM64 deployment. Run migrations as a single explicit operation before starting the new application. Never run destructive downgrades automatically during application rollback.
 
 The original baseline can be downgraded with `alembic downgrade base`; this removes revision state and leaves unrelated tables intact. From the recipe head, downgrade requires empty recipe tables and locks out concurrent writers; populated draft downgrade fails without data loss. Readiness then returns 503 until upgraded. Later migrations must document compatibility, retained data, and reversibility individually. A PostgreSQL major upgrade requires an explicit upgrade/restore procedure; changing the image tag alone is not sufficient.
+
+
+The catalogue development slice advances source readiness/operator head to `0003_fermentable_catalogue`. Installed production revision is separate evidence; review [catalogue storage](fermentable-catalogue.md) and complete its guarded operations update before merging/deploying this revision. No migration runs implicitly on API startup.

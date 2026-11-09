@@ -12,6 +12,8 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import ProgrammingError
 
 from brewery_api.api import create_app
+from brewery_database.catalogue import PostgresFermentableCatalog
+from tests.fixtures.catalogue_support import grain
 from brewery_database.recipes import PostgresRecipeDraftStore
 from brewery_domain.recipe_plan import Ingredient, RecipePlan, Step
 from brewery_domain.recipes import RecipeDraft
@@ -138,3 +140,18 @@ class DatabaseRoleTests(PostgreSQLTestCase):
             self.skipTest("TCP PostgreSQL URL required for SCRAM authentication check")
         with self.assertRaises(psycopg.OperationalError):
             self.connect_as(self.application, "incorrect-test-password")
+
+
+    def test_runtime_catalogue_is_append_only_without_update_delete_or_ddl(self):
+        self.migrate_as_owner()
+        engine = create_engine(self.url.set(username=self.application, password=self.application_password))
+        self.addCleanup(engine.dispose)
+        store = PostgresFermentableCatalog(engine)
+        store.append(grain())
+        self.assertEqual(store.load('grain-r1'), grain())
+        with self.connect_as(self.application, self.application_password) as app:
+            for statement in ("UPDATE fermentable_revision SET name = 'rewrite'", 'DELETE FROM fermentable_product',
+                              'DELETE FROM fermentable_revision', 'DELETE FROM fermentable_flavor',
+                              'DELETE FROM fermentable_component', 'DROP TABLE fermentable_revision'):
+                with self.subTest(statement=statement), self.assertRaises(psycopg.errors.InsufficientPrivilege):
+                    app.execute(statement)
