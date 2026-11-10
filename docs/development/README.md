@@ -1,6 +1,6 @@
 # Development workflow
 
-Start with the [knowledge base](../README.md), [current status](../plan/status.md), and [ownership map](repository-layout.md). The current work is M1, with an initial UI-04 Recipe Library preview supporting future AC-01/AC-03/AC-13. Recipe persistence, imports, and brewing actions are not implemented by the preview.
+Start with the [knowledge base](../README.md), [current status](../plan/status.md), [delivery gates](../plan/delivery-gates.md), and [ownership map](repository-layout.md). The current work is M2 recipe planning and the C1–C5 conversion slices. The foundation and manual draft/ingredient persistence are implemented; imports, publication, and brewing actions remain future work. Check source and branch state before choosing a task.
 
 Before creating or updating any PR, run `python3 scripts/pre_pr.py` and verify the fresh report with `python3 scripts/pre_pr.py --verify-report`. See [required checks, policy rules, and limitations](pre-pr-validation.md). The fast architecture command is `python3 scripts/validate_repository.py`.
 
@@ -14,7 +14,7 @@ npm run dev
 npm run build
 ```
 
-Open http://127.0.0.1:5173 for the application. Home, Recipes, and Settings support refresh/back/forward navigation. Brew day/batch links and recipe creation/search/filtering are unavailable until their features exist. The page never fabricates recipe counts or sample recipes.
+Open http://127.0.0.1:5173 for the application. Home, Recipes, and Settings support refresh/back/forward navigation. Recipes supports stored draft listing, creation, overview editing, and ingredient editing with stale-edit review. Brew day/batch links, recipe search/filtering, publication, and imports remain unavailable. The standalone calculator is on a separate feature branch; see delivery gates before treating it as part of main. The page never fabricates recipe counts or sample recipes.
 
 Open http://127.0.0.1:5173/component-examples.html for the repeatable shared-component gallery. Examples and component styles are owned by `packages/ui`, while tokens/icons/global foundations are owned by `packages/design-system`. The gallery is not part of the production bundle.
 

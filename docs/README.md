@@ -7,6 +7,7 @@ Start here before planning or implementing a feature. This knowledge base combin
 1. [Product scope](requirements/product-scope.md): intended brewing workflow and boundaries.
 2. [Current status](plan/status.md): what is implemented and what has actually been verified.
 3. [Roadmap](plan/roadmap.md): delivery order, acceptance criteria, and the next task.
+   Check [current delivery gates](plan/delivery-gates.md) for merged versus in-flight branches and release prerequisites.
 4. [Open decisions](plan/open-decisions.md): choices that must remain explicit.
 5. Read the relevant [screen specification](design/screens.md), [acceptance scenarios](requirements/acceptance-scenarios.md), [architecture](architecture/system-overview.md), and [decision records](architecture/decisions/README.md).
 
