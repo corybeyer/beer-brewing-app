@@ -39,6 +39,8 @@ The branches were checked separately without changing their source:
 
 The GitHub API connection was denied by the environment proxy. The CI result above was verified from GitHub's public HTML summary instead. Repository Git reads/writes are a separate capability from GitHub API access.
 
+The full pre-PR run initially exposed an existing permission-test fixture assumption: under shell umask `0077`, `mkdir(mode=0755)` creates mode `0700`, so the supposed invalid directory was valid. The fixture now explicitly sets its intended `0755` mode before asserting rejection. Production secret validation is unchanged. The successful source-bound pre-PR report for this review branch must be generated after that fixture correction; focused branch results above do not substitute for it.
+
 ## Immediate sequence
 
 1. Complete PR #18's source review and verify the administrator operations update before its schema merge. Keep it draft until that prerequisite is evidenced.

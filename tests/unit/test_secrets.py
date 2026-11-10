@@ -25,6 +25,8 @@ class SecretFileTests(unittest.TestCase):
         with TemporaryDirectory() as directory:
             root = Path(directory) / "secrets"
             root.mkdir(mode=0o755)
+            # Establish the invalid fixture independently of the caller's umask.
+            root.chmod(0o755)
             with self.assertRaisesRegex(ValueError, "0700"):
                 create_secrets(root)
             root.chmod(0o700)
