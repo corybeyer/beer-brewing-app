@@ -1,6 +1,6 @@
 # Current development status
 
-As of November 8, 2026 (America/Chicago). This is a development snapshot, not a live production health report.
+As of November 9, 2026 (America/Chicago). This is a development snapshot, not a live production health report.
 
 ## Active repository
 
@@ -78,7 +78,7 @@ The prototype was not integrated or executed during knowledge-base creation. Its
 
 PR #16 merged C2a as `7ea325f9017d7df81dbbe7f949ad05b29e750a62`. All eight main CI jobs, publication, automatic Pi deployment, live schema/health/frontend checks, and a fresh post-migration snapshot backup/restore passed. Installed operations were updated and verified against reviewed source commit `650ee5c6a94e068000f994757d0b56c5b74bec80` before merge. See [catalogue adoption evidence](#verified-production-catalogue-adoption).
 
-The first C2b domain slice now captures original/proposed drafts, full product revisions, exact calculation evidence, and explicit potential/weighing overrides, with a review-time stale-input guard. Transactional proposal retention is next; matching, picker/apply, recipe step editing, publication, and full M2 acceptance remain outstanding. See the [snapshot rules](../requirements/conversion-proposal-snapshots.md) and [roadmap](roadmap.md). Whole-host/off-device recovery and full AC-14 remain separate; preserve the retained smoke rollback.
+PR #17 merged the first C2b domain slice as `5c3bfd5196dca352cc424ae6a788097f78bd7df0`: original/proposed drafts, full product revisions, exact calculation evidence, potential/weighing overrides, and a review-time stale-input guard. Transactional proposal retention is in development on a separate branch; matching, picker/apply, recipe step editing, publication, and full M2 acceptance remain outstanding. See the [snapshot rules](../requirements/conversion-proposal-snapshots.md) and [roadmap](roadmap.md). Whole-host/off-device recovery and full AC-14 remain separate; preserve the retained smoke rollback.
 
 ## M1 container-validation follow-up
 
@@ -201,7 +201,11 @@ Under [proposed ADR-0013](../architecture/decisions/0013-conversion-proposal-sna
 
 Twenty-one focused tests passed with `.venv/bin/python -m unittest tests.unit.test_conversion_proposals -v`, exercising immutability/history independence, stale inputs, tampered arithmetic, provenance/overrides, full profile closure, explicit rounding/portion handling, unknown fields, and broken/unexplained changes. Final source-bound full checks belong in `.validation/pre-pr.json`. This is domain evidence toward CV-08/CV-09, not durable retention or concurrent-application evidence. No schema, storage adapter, API/UI, matching, blend generation, or Apply behavior changed. C2b transactional retention and CV-12 proposal-schema coverage remain next; C2b is not complete.
 
+## C3 grain matching and selected-blend sizing in development
 
+An independent pure domain slice under [proposed ADR-0015](../architecture/decisions/0015-grain-match-ranking.md) ranks supplied full extract compositions before optional single-grain variations. Manufacturer-reported and manually assumed bills keep distinct labels. Unknown/unresolved composition never becomes an exact bill. Variations retain exact descriptor Jaccard scores and same-unit/same-basis color-range gaps, with stable revision-ID ties. Candidates without usable similarity evidence are explicitly unranked. Missing/assumed yield, composition, descriptor, color, and recovery data remain review reasons, alongside mash-feasibility and whole-recipe review. A separate exact blend calculator sizes explicitly selected grains from mass shares and retained per-grain yield/recovery assumptions, returning unrounded rational total/component masses and gravity contributions under `grain-blend-gravity/v1`. No remote source, seed, database, API/UI, recipe write, or equipment action is introduced.
+
+Twenty-one synthetic focused tests passed with `PYTHONPATH=packages/domain/src .venv/bin/python -m unittest tests.unit.test_fermentable_matching -v` using the shared development virtual environment against the isolated worktree. They exercise provenance-specific bill matching, unknown dark extract, missing components/data, exact evidence under low Decimal precision, ordering independent of caller iteration, incompatible color contexts, unranked alternatives, immutable history, invalid identity/kind/collection inputs, and size bounds. Source-bound full pre-PR checks and CI remain required. Fifteen additional blend tests passed for C1 agreement, differing component recoveries, exact shares/masses/contributions, units, reference points, provenance/overrides, identity/resource bounds, and a 100-component blend. The combined 36 focused checks support CV-05/CV-06 and numerical CV-07/CV-10, not complete C3, recipe-link/application coverage, or picker acceptance. The current C2b snapshot format does not yet retain blend results; integration needs an explicit format extension.
 ## Standalone conversion calculator in development
 
 C5 now has a standalone fermentable calculator page and `POST /api/v1/conversions/fermentable` under [proposed ADR-0016](../architecture/decisions/0016-standalone-conversion-calculator.md). All source/target potential, recovery, comparison-point, provenance, and mass-unit inputs are explicit. The endpoint reuses C1 exact arithmetic, returns retained assumptions and rational results, and formats display to six decimal places on the server; tiny positive results that would round to zero display `<0.000001`. The browser performs no brewing arithmetic. No schema, database write, catalogue fetch, recipe Apply, or operations update is introduced.
