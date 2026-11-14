@@ -16,6 +16,7 @@
 | [ADR-0012](0012-fermentable-catalogue.md) | Proposed | Immutable sourced grain/DME/LME catalogue and guarded rollout |
 | [ADR-0013](0013-conversion-proposal-snapshots.md) | Proposed | Immutable conversion inputs and review-time revision guard |
 | [ADR-0014](0014-conversion-proposal-retention.md) | Proposed | Transactional append-only proposal documents, revision locking, and guarded rollout |
+| [ADR-0015](0015-grain-match-ranking.md) | Proposed | Explainable grain matches, labeled variations, and exact selected-blend sizing |
 
 See [open decisions](../../plan/open-decisions.md) for outstanding choices. Preserve existing statuses until a decision is explicitly accepted; the prototype's implementation is not automatic approval of its architecture.
 
