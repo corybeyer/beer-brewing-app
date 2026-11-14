@@ -47,7 +47,7 @@ class RecipeStepTests(RecipeHTTPTestCase):
         steps = original['steps']
         invalid_plans = [
             ([dict(steps[0], dependencies=['boil']), dict(steps[1], dependencies=['mash'])], 'cycle'),
-            ([dict(steps[0], anchor_step_id='missing'), steps[1]], 'unknown_reference'),
+            ([dict(steps[0], anchor_step_id='missing'), steps[1]], 'unknown_step'),
             ([steps[1]], 'unknown_reference'),
             ([dict(steps[0], id=' mash '), steps[1]], 'invalid_id'),
         ]
