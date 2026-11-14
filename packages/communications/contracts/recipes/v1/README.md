@@ -1,6 +1,6 @@
 # Recipe and conversion HTTP contract v1
 
-M2/UI-04/UI-05 under [proposed ADR-0011](../../../../../docs/architecture/decisions/0011-manual-recipe-overview.md). All recipe resources are drafts; this interface does not publish, start a batch, expose the full plan, or change ingredients/steps. Generated model schemas in this directory are tested against the implemented transport models. OpenAPI is served at `/api/v1/openapi.json`.
+M2/UI-02/UI-04/UI-05 under [proposed ADR-0011](../../../../../docs/architecture/decisions/0011-manual-recipe-overview.md). All recipe resources are drafts; this interface does not publish, start a batch, or expose a combined full-plan resource. Generated model schemas in this directory are tested against the implemented transport models. OpenAPI is served at `/api/v1/openapi.json`.
 
 | Method and path | Request / response |
 | --- | --- |
@@ -8,6 +8,8 @@ M2/UI-04/UI-05 under [proposed ADR-0011](../../../../../docs/architecture/decisi
 | POST `/api/v1/recipe-drafts` | `create-draft.schema.json`: creation_id is UUID v4. First request creates an empty numbered version and returns 201 overview; repeated key returns 200 current overview without overwriting it. Simultaneous retries create one draft. |
 | GET `/api/v1/recipe-drafts/{version_id}` | `overview.schema.json`; 404 if absent. Version IDs are path segments of 1–128 characters; HTTP-created IDs are UUID strings. |
 | PATCH `/api/v1/recipe-drafts/{version_id}/overview` | `update-overview.schema.json`: expected_revision, name, and description are all required. Explicit null clears an optional field. Only these two text fields change; complete ingredient/step data stays intact. Returns the saved overview with edit_revision incremented once. |
+| GET `/api/v1/recipe-drafts/{version_id}/steps` | `steps.schema.json`: coherent version ID, edit revision, and ordered steps. |
+| PATCH `/api/v1/recipe-drafts/{version_id}/steps` | `update-steps.schema.json`: expected_revision and complete replacement step list. |
 
 Name is nullable, at most 200 Unicode characters, and nonblank when provided. Description is nullable and at most 10,000 characters. Extra fields, coerced numbers/booleans, and missing revision/text keys are rejected. Edit revisions on the wire are positive integers no larger than JavaScript's safe integer maximum. Request-body size is independently limited to 32 KiB. Browser HTML maxlength counts UTF-16 units. No implicit units, classification, targets, or publication values are inferred.
 
@@ -43,3 +45,10 @@ The same interface supports the one-to-one C1 conversion slice described in [ext
 | POST `/api/v1/recipe-drafts/{version_id}/conversion-proposals/{proposal_id}/apply` | `apply-conversion.schema.json`; rechecks the original revision and atomically replaces the complete validated plan. Returns the incremented overview. A second or stale Apply returns 409. |
 
 The target mass display is rounded to 0.001 of the chosen unit; the exact rational amount remains in the retained proposal. The response asks the brewer to verify scale precision. Apply is a distinct user action. This estimates equal gravity contribution at the selected comparison point; it does not establish equal flavor, mash feasibility, or recipe readiness. Blend proposals and mash-step adaptation are outside this snapshot format.
+The edit revision is shared by overview, ingredient, step, and future plan writes. A stale save returns 409, even when the other writer edited a different section. The UI retains values on failure and requires explicit review of the latest saved section before retrying a conflict. An ingredient or step save cannot silently advance a stale overview's revision; only a save from the exact current overview revision can advance it locally.
+
+## Manual step editing
+
+GET `/api/v1/recipe-drafts/{version_id}/steps` reads the complete ordered list and the IDs of steps that own ingredient additions; PATCH at the same path replaces the step list with an expected_revision. The shared revision covers overview, ingredients, and steps, so stale writes return 409.
+
+Each step has a stable ID, nullable title/instructions, dependency IDs, and a nullable timing anchor. Writes accept at most 100 steps; titles are limited to 200 characters, instructions to 2,000, and each dependency list to 100 IDs. The step request cap is 2 MiB. The selected path owns version identity. The complete proposed step list is validated against itself and the unchanged ingredient/addition records; missing references, cycles, and removal of a step used by an addition fail without saving. The UI disables removal while a step has dependent links or ingredient additions. Reordering changes display positions only, so step IDs and links stay stable. The browser offers keyboard move-up/move-down controls, editable links, retained values on errors, and explicit conflict review. Duration, offset, action type, vessel role, targets, confirmation rules, publication, and batch timers remain future work.

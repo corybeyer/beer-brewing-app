@@ -1,13 +1,14 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import type { RecipeOverview, RecipeIngredient } from '@brewery/communications/recipes';
+import type { RecipeOverview, RecipeIngredient, RecipeStep } from '@brewery/communications/recipes';
 
 const endpoint = '**/api/v1/recipe-drafts**';
 const failure = (code: string, message: string, issues: { path: string; code: string; message: string }[] = []) => ({ error: { code, message, issues } });
 
-async function server(page: Page, loseFirstCreate = false) {
+async function server(page: Page, loseFirstCreate = false, markFirstStepLinked = false) {
   const drafts = new Map<string, RecipeOverview>();
   const ingredients = new Map<string, RecipeIngredient[]>();
+  const steps = new Map<string, RecipeStep[]>();
   const keys: string[] = []; const revisions: number[] = [];
   await page.route('**/api/v1/readiness', (route) => route.fulfill({ json: { status: 'ready' } }));
   await page.route(endpoint, async (route) => {
@@ -30,6 +31,12 @@ async function server(page: Page, loseFirstCreate = false) {
         drafts.set(id, { ...draft, edit_revision: draft.edit_revision + 1 });
         return route.fulfill({ json: { version_id: id, edit_revision: draft.edit_revision + 1, ingredients: body.ingredients } });
       }
+      if (url.pathname.endsWith('/steps')) {
+        steps.set(id, body.steps);
+        drafts.set(id, { ...draft, edit_revision: draft.edit_revision + 1 });
+        const linkedAdditionStepIds = markFirstStepLinked && body.steps.length ? [body.steps[0].id] : [];
+        return route.fulfill({ json: { version_id: id, edit_revision: draft.edit_revision + 1, steps: body.steps, linked_addition_step_ids: linkedAdditionStepIds } });
+      }
       const saved = { ...draft, name: body.name, description: body.description, edit_revision: draft.edit_revision + 1 };
       drafts.set(id, saved); return route.fulfill({ json: saved });
     }
@@ -39,12 +46,39 @@ async function server(page: Page, loseFirstCreate = false) {
       const draft = drafts.get(id)!;
       return route.fulfill({ json: { version_id: id, edit_revision: draft.edit_revision, ingredients: ingredients.get(id) ?? [] } });
     }
+    if (url.pathname.endsWith('/steps')) {
+      const id = decodeURIComponent(url.pathname.split('/').at(-2)!);
+      const draft = drafts.get(id)!;
+      return route.fulfill({ json: { version_id: id, edit_revision: draft.edit_revision, steps: steps.get(id) ?? [], linked_addition_step_ids: [] } });
+    }
     const draft = drafts.get(decodeURIComponent(url.pathname.split('/').at(-1)!));
     return route.fulfill({ status: draft ? 200 : 404, json: draft ?? failure('not_found', 'This draft could not be found.') });
   });
   await page.route('**/api/v1/recipe-drafts/catalogue/grains', (route) => route.fulfill({ json: [] }));
-  return { drafts, ingredients, keys, revisions };
+  return { drafts, ingredients, steps, keys, revisions };
 }
+
+test('edit and reorder recipe steps while retaining dependency identity', async ({ page }) => {
+  const api = await server(page, false, true); await newDraft(page);
+  await page.getByRole('button', { name: 'Add step', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Step 1 title', exact: true }).fill('Mash');
+  await page.getByRole('textbox', { name: 'Step 1 instructions', exact: true }).fill('Hold at the planned temperature.');
+  await page.getByRole('button', { name: 'Add step', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Step 2 title', exact: true }).fill('Boil');
+  await page.getByRole('listbox', { name: 'Step 2 dependencies', exact: true }).selectOption({ label: 'Mash' });
+  await page.getByRole('combobox', { name: 'Step 2 timing anchor', exact: true }).selectOption({ label: 'Mash' });
+  await page.getByRole('button', { name: 'Move step 2 up', exact: true }).click();
+  await page.getByRole('button', { name: 'Save steps', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Steps saved.' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Remove step 1', exact: true })).toBeDisabled();
+  await expect(page.getByText('Remove this step’s dependent links and ingredient additions before deleting it.', { exact: true })).toHaveCount(2);
+  const saved = [...api.steps.values()][0];
+  expect(saved.map((step) => step.title)).toEqual(['Boil', 'Mash']);
+  expect(saved[0].dependencies).toEqual([saved[1].id]);
+  expect(saved[0].anchor_step_id).toBe(saved[1].id);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
+});
 
 async function newDraft(page: Page) {
   await page.goto('/');

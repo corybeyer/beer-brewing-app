@@ -3,13 +3,13 @@ import { Button, Card, SelectField, TextField } from '@brewery/ui';
 import { loadIngredients, newCreationId, RecipeRequestError, saveIngredients,
   type IngredientList, type RecipeIngredient } from '@brewery/communications/recipes';
 
-type Props = { versionId: string; disabled: boolean; onDirtyChange: (dirty: boolean) => void;
+type Props = { versionId: string; editRevision: number; disabled: boolean; onDirtyChange: (dirty: boolean) => void;
   onBusyChange: (busy: boolean) => void; onSaved: (list: IngredientList) => void };
 const categories = ['grain', 'hops', 'yeast', 'other'];
 const units = ['g', 'kg', 'oz', 'lb', 'mL', 'L', 'US_fl_oz', 'US_gal', 'count', 'packet'];
 const problem = (error: unknown) => error instanceof RecipeRequestError ? error : new RecipeRequestError('unavailable', 'Ingredients could not be loaded or saved. Please retry.');
 
-export function IngredientEditor({ versionId, disabled, onDirtyChange, onBusyChange, onSaved }: Props) {
+export function IngredientEditor({ versionId, editRevision, disabled, onDirtyChange, onBusyChange, onSaved }: Props) {
   const [saved, setSaved] = useState<IngredientList | null>(null);
   const [rows, setRows] = useState<RecipeIngredient[]>([]);
   const [busy, setBusy] = useState(true);
@@ -21,6 +21,9 @@ export function IngredientEditor({ versionId, disabled, onDirtyChange, onBusyCha
   const focusId = useRef<string | null>(null);
   const dirty = saved !== null && JSON.stringify(rows) !== JSON.stringify(saved.ingredients);
   useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
+  useEffect(() => {
+    if (saved && !dirty && saved.edit_revision !== editRevision) setSaved((current) => current ? { ...current, edit_revision: editRevision } : current);
+  }, [dirty, editRevision, saved]);
   useEffect(() => { onBusyChange(busy); }, [busy, onBusyChange]);
   useEffect(() => () => { controller.current?.abort(); onDirtyChange(false); onBusyChange(false); }, [onDirtyChange, onBusyChange]);
   useEffect(() => { if (focusId.current) { document.getElementById(focusId.current)?.focus(); focusId.current = null; } }, [rows]);
