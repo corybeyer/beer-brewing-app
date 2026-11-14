@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import type { RecipeOverview, RecipeIngredient, RecipeStep } from '@brewery/communications/recipes';
+import type { RecipeOverview, RecipeIngredient, RecipeStep, RecipeDetails } from '@brewery/communications/recipes';
 
 const endpoint = '**/api/v1/recipe-drafts**';
 const failure = (code: string, message: string, issues: { path: string; code: string; message: string }[] = []) => ({ error: { code, message, issues } });
@@ -9,6 +9,7 @@ async function server(page: Page, loseFirstCreate = false, markFirstStepLinked =
   const drafts = new Map<string, RecipeOverview>();
   const ingredients = new Map<string, RecipeIngredient[]>();
   const steps = new Map<string, RecipeStep[]>();
+  const details = new Map<string, RecipeDetails>();
   const keys: string[] = []; const revisions: number[] = [];
   await page.route('**/api/v1/readiness', (route) => route.fulfill({ json: { status: 'ready' } }));
   await page.route(endpoint, async (route) => {
@@ -19,6 +20,8 @@ async function server(page: Page, loseFirstCreate = false, markFirstStepLinked =
       const draft: RecipeOverview = previous ?? { recipe_id: key, version_id: `draft-${key}`, version_number: 1,
         name: null, description: null, edit_revision: 1, status: 'draft' };
       drafts.set(draft.version_id, draft);
+      details.set(draft.version_id, { version_id: draft.version_id, edit_revision: draft.edit_revision,
+        source: null, tags: [], volume_targets: [] });
       if (loseFirstCreate && keys.length === 1) return route.abort('failed');
       return route.fulfill({ status: previous ? 200 : 201, json: draft });
     }
@@ -37,6 +40,12 @@ async function server(page: Page, loseFirstCreate = false, markFirstStepLinked =
         const linkedAdditionStepIds = markFirstStepLinked && body.steps.length ? [body.steps[0].id] : [];
         return route.fulfill({ json: { version_id: id, edit_revision: draft.edit_revision + 1, steps: body.steps, linked_addition_step_ids: linkedAdditionStepIds } });
       }
+      if (url.pathname.endsWith('/details')) {
+        const saved: RecipeDetails = { version_id: id, edit_revision: draft.edit_revision + 1,
+          source: body.source, tags: body.tags, volume_targets: body.volume_targets };
+        details.set(id, saved); drafts.set(id, { ...draft, edit_revision: saved.edit_revision });
+        return route.fulfill({ json: saved });
+      }
       const saved = { ...draft, name: body.name, description: body.description, edit_revision: draft.edit_revision + 1 };
       drafts.set(id, saved); return route.fulfill({ json: saved });
     }
@@ -50,6 +59,14 @@ async function server(page: Page, loseFirstCreate = false, markFirstStepLinked =
       const id = decodeURIComponent(url.pathname.split('/').at(-2)!);
       const draft = drafts.get(id)!;
       return route.fulfill({ json: { version_id: id, edit_revision: draft.edit_revision, steps: steps.get(id) ?? [], linked_addition_step_ids: [] } });
+    }
+    if (url.pathname.endsWith('/details')) {
+      const id = decodeURIComponent(url.pathname.split('/').at(-2)!);
+      const draft = drafts.get(id);
+      const value = details.get(id) ?? (draft ? { version_id: id, edit_revision: draft.edit_revision,
+        source: null, tags: [], volume_targets: [] } : undefined);
+      if (value) details.set(id, value);
+      return route.fulfill({ status: value ? 200 : 404, json: value ?? failure('not_found', 'This draft could not be found.') });
     }
     const draft = drafts.get(decodeURIComponent(url.pathname.split('/').at(-1)!));
     return route.fulfill({ status: draft ? 200 : 404, json: draft ?? failure('not_found', 'This draft could not be found.') });

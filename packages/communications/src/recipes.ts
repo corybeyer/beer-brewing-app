@@ -178,3 +178,44 @@ export async function saveSteps(current: StepList, steps: RecipeStep[], signal: 
   if (saved.edit_revision !== current.edit_revision + 1) throw new RecipeRequestError('invalid_response', 'The step save could not be verified. Review the latest saved steps before retrying.');
   return saved;
 }
+
+export type VolumePurpose = 'fermenter' | 'kettle' | 'packaged';
+export type VolumeUnit = 'mL' | 'L' | 'US_fl_oz' | 'US_gal';
+export interface RecipeVolumeTarget { purpose: VolumePurpose; amount: string; unit: VolumeUnit }
+export interface RecipeDetails {
+  version_id: string; edit_revision: number; source: string | null; tags: string[]; volume_targets: RecipeVolumeTarget[];
+}
+export interface RecipeDetailsInput { source: string | null; tags: string[]; volume_targets: RecipeVolumeTarget[] }
+function parseRecipeDetails(value: unknown, versionId: string): RecipeDetails {
+  if (!object(value) || value.version_id !== versionId || !positiveInteger(value.edit_revision) ||
+      !nullableText(value.source) || (typeof value.source === 'string' && value.source.length > 2000) ||
+      !Array.isArray(value.tags) || value.tags.length > 32 || !Array.isArray(value.volume_targets) ||
+      value.volume_targets.length > 3) {
+    throw new RecipeRequestError('invalid_response', 'Recipe details could not be read. Please retry.');
+  }
+  const tags = value.tags;
+  const targets = value.volume_targets;
+  if (!tags.every((tag) => typeof tag === 'string' && tag.length > 0 && tag.length <= 100 && tag === tag.trim()) ||
+      new Set(tags.map((tag) => (tag as string).toLocaleLowerCase('und'))).size !== tags.length ||
+      !targets.every((target) => object(target) &&
+        (target.purpose === 'fermenter' || target.purpose === 'kettle' || target.purpose === 'packaged') &&
+        typeof target.amount === 'string' && /^(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,12})?$/.test(target.amount) &&
+        Number(target.amount) > 0 &&
+        (target.unit === 'mL' || target.unit === 'L' || target.unit === 'US_fl_oz' || target.unit === 'US_gal')) ||
+      new Set(targets.map((target) => (target as RecipeVolumeTarget).purpose)).size !== targets.length) {
+    throw new RecipeRequestError('invalid_response', 'Recipe details could not be read. Please retry.');
+  }
+  return value as unknown as RecipeDetails;
+}
+export async function loadRecipeDetails(versionId: string, signal: AbortSignal): Promise<RecipeDetails> {
+  return parseRecipeDetails(await request(`${endpoint}/${encodeURIComponent(versionId)}/details`, signal), versionId);
+}
+export async function saveRecipeDetails(current: RecipeDetails, input: RecipeDetailsInput, signal: AbortSignal): Promise<RecipeDetails> {
+  const saved = parseRecipeDetails(await request(`${endpoint}/${encodeURIComponent(current.version_id)}/details`, signal, 'PATCH', {
+    expected_revision: current.edit_revision, ...input,
+  }), current.version_id);
+  if (saved.edit_revision !== current.edit_revision + 1) {
+    throw new RecipeRequestError('invalid_response', 'The details save could not be verified. Review the latest saved values before retrying.');
+  }
+  return saved;
+}

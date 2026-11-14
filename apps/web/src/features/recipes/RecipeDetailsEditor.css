@@ -1,0 +1,9 @@
+/* Feature layout only; shared controls own their presentation. */
+.recipe-details-tag { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: var(--space-3); }
+.recipe-details-targets { display: grid; gap: var(--space-4); }
+.recipe-details-target { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; gap: var(--space-4); }
+.recipe-details-target > button { grid-column: 1 / -1; justify-self: start; }
+@media (max-width: 48rem) {
+  .recipe-details-tag, .recipe-details-target { grid-template-columns: minmax(0, 1fr); }
+  .recipe-details-target > button { grid-column: auto; justify-self: stretch; }
+}
