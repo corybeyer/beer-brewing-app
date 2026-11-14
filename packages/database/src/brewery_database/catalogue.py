@@ -92,17 +92,21 @@ class PostgresFermentableCatalog:
     @_available
     def load(self, revision_id: str) -> CatalogRevision | None:
         with self.engine.connect() as connection:
-            row = connection.execute(sa.select(_revision).where(_revision.c.id == revision_id)).mappings().one_or_none()
-            if row is None:
-                return None
-            tags = tuple(connection.execute(sa.select(_flavor.c.descriptor)
-                         .where(_flavor.c.revision_id == revision_id).order_by(_flavor.c.position)).scalars())
-            components = tuple(GrainComponent(item['grain_revision_id'], item['mass_fraction']) for item in
-                connection.execute(sa.select(_component).where(_component.c.extract_revision_id == revision_id)
-                                   .order_by(_component.c.position)).mappings())
-            color = IngredientColor(row['color_low'], row['color_high'], row['color_unit'], row['color_basis']) if row['color_low'] is not None else None
-            value = CatalogRevision(revision_id=row['id'], **{field: row[field] for field in _scalar_fields},
-                                    color=color, flavor_tags=tags, components=components)
-            if validate_catalog_revision(value):
-                raise CatalogUnavailable('Stored catalogue data failed validation.')
-            return value
+            return _read_revision(connection, revision_id)
+
+
+def _read_revision(connection, revision_id):
+    row = connection.execute(sa.select(_revision).where(_revision.c.id == revision_id)).mappings().one_or_none()
+    if row is None:
+        return None
+    tags = tuple(connection.execute(sa.select(_flavor.c.descriptor)
+                 .where(_flavor.c.revision_id == revision_id).order_by(_flavor.c.position)).scalars())
+    components = tuple(GrainComponent(item['grain_revision_id'], item['mass_fraction']) for item in
+        connection.execute(sa.select(_component).where(_component.c.extract_revision_id == revision_id)
+                           .order_by(_component.c.position)).mappings())
+    color = IngredientColor(row['color_low'], row['color_high'], row['color_unit'], row['color_basis']) if row['color_low'] is not None else None
+    value = CatalogRevision(revision_id=row['id'], **{field: row[field] for field in _scalar_fields},
+                            color=color, flavor_tags=tags, components=components)
+    if validate_catalog_revision(value):
+        raise CatalogUnavailable('Stored catalogue data failed validation.')
+    return value

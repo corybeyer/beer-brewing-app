@@ -3,6 +3,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime
 from decimal import Decimal
 from fractions import Fraction
+from typing import Protocol
 
 from .extract_conversion import ConversionInputError, ConversionResult, convert_fermentable
 from .fermentable_catalogue import CatalogRevision, validate_catalog_revision
@@ -41,6 +42,20 @@ class InvalidConversionProposal(ValueError):
 
 class StaleConversionProposal(ValueError):
     """Review refers to a different or edited draft; it must be regenerated."""
+
+
+class ConversionProposalConflict(ValueError):
+    """An immutable proposal identifier already exists."""
+
+
+class ConversionProposalUnavailable(RuntimeError):
+    """Proposal storage failed without exposing adapter details."""
+
+
+class ConversionProposalStore(Protocol):
+    def append(self, proposal: ConversionProposal) -> ConversionProposal: ...
+
+    def load(self, proposal_id: str) -> ConversionProposal | None: ...
 
 
 def _text(value, optional=False):

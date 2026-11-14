@@ -190,3 +190,29 @@ class ProductionBackupTests(PostgreSQLTestCase):
         metadata = json.loads((backup / 'metadata.json').read_text())
         self.assertTrue(metadata['verified'])
         self.assertEqual(metadata['revision'], SCHEMA_REVISION)
+
+
+    def test_complete_exact_proposal_document_survives_verified_restore(self):
+        from brewery_database.proposals import PostgresConversionProposalStore
+        from tests.fixtures.proposal_support import seed_proposal
+        value = seed_proposal(self.engine)
+        store = PostgresConversionProposalStore(self.engine)
+        store.append(value)
+        with self.engine.connect() as connection:
+            source_document = connection.execute(text('SELECT document FROM conversion_proposal')).scalar_one()
+        fingerprint = self.deployment.table_fingerprints
+        restored = []
+        def inspect_restore(database='brewery', query=None):
+            if database.startswith('brew_verify_'):
+                restored.append(database)
+                self.assertEqual(self.deployment.sql('SELECT count(*) FROM conversion_proposal', database), '1')
+                self.assertEqual(json.loads(self.deployment.sql('SELECT document::text FROM conversion_proposal', database)), source_document)
+                self.assertEqual(self.deployment.sql('SELECT original_edit_revision FROM conversion_proposal', database), '1')
+            return fingerprint(database, query)
+        with patch.object(self.deployment, 'table_fingerprints', side_effect=inspect_restore):
+            backup = self.deployment.backup()
+        self.assertEqual(len(restored), 1)
+        metadata = json.loads((backup / 'metadata.json').read_text())
+        self.assertTrue(metadata['verified'])
+        self.assertEqual(metadata['revision'], SCHEMA_REVISION)
+        self.assertEqual(store.load(value.id), value)

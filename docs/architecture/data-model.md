@@ -413,4 +413,9 @@ erDiagram
 
 ## Catalogue storage extension
 
-The C2a development slice adds a separate [sourced fermentable catalogue](fermentable-catalogue.md) under proposed ADR-0012. Its four tables store product identities, immutable profile/source revisions, flavor descriptors, and grain-only composition links. They are independent of the target recipe/batch ERDs above; no recipe-to-catalogue or conversion-proposal snapshot relationship is implemented yet. Consult the owning storage specification and migration for current SQL rather than treating this target diagram as deployed schema evidence.
+The C2a development slice adds a separate [sourced fermentable catalogue](fermentable-catalogue.md) under proposed ADR-0012. Its four tables store product identities, immutable profile/source revisions, flavor descriptors, and grain-only composition links. They are independent of the target recipe/batch ERDs above; live recipe-to-catalogue editing remains unavailable. A separate C2b retention slice is described below. Consult the owning storage specification and migration for current SQL rather than treating this target diagram as deployed schema evidence.
+
+
+## Conversion proposal history extension
+
+The C2b development slice adds [transactional proposal retention](conversion-proposal-storage.md) under proposed ADR-0014. One append-only table has relational recipe-version ownership and a strictly versioned historical document containing complete original/proposed recipes, product revisions, exact calculation evidence, and explanations. Current recipes/catalogue retain their normalized schemas; the document is independently interpretable history, not a replacement for live recipe constraints. Retention takes the recipe writer's parent lock and rejects stale originals atomically. No proposal application, publication, batch snapshot, API, or UI is implemented by this storage slice. Schema `0004_conversion_proposals` remains a development revision until its reviewed operations update and separate adoption evidence exist.

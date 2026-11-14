@@ -22,10 +22,12 @@ REPOSITORY = 'ghcr.io/corybeyer/beer-brewing-app'
 BASELINE = '0001_baseline'
 RECIPES = '0002_recipe_drafts'
 CATALOGUE = '0003_fermentable_catalogue'
+PROPOSALS = '0004_conversion_proposals'
 FORWARD_REVISIONS = {
     BASELINE: {'', BASELINE},
     RECIPES: {'', BASELINE, RECIPES},
     CATALOGUE: {'', BASELINE, RECIPES, CATALOGUE},
+    PROPOSALS: {'', BASELINE, RECIPES, CATALOGUE, PROPOSALS},
 }
 SUPPORTED_REVISIONS = set(FORWARD_REVISIONS)
 DATA_VOLUME = 'brewery-production-postgres'
