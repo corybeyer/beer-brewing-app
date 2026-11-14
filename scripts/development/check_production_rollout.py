@@ -255,7 +255,17 @@ def main():
                 raise RuntimeError('Broken details upgrade unexpectedly deployed')
             assert deployment.revision() == '0005_recipe_details'
             assert not (root / 'state.json').exists()
-            deployment.validate_service('brewery')
+            address = deployment.compose('port', 'brewery', '8080').decode().strip()
+            port = address.rsplit(':', 1)[1]
+            with urlopen('http://127.0.0.1:' + port + '/health', timeout=5) as response:
+                assert response.status == 200
+            for path in ('/api/v1/readiness', '/'):
+                try:
+                    urlopen('http://127.0.0.1:' + port + path, timeout=5)
+                except HTTPError as response:
+                    assert response.code == 404
+                else:
+                    raise RuntimeError(f'Incompatible details API path {path} survived smoke fallback')
             deployment.deploy_images(tags['app'], tags['operator'])
             backup = deployment.backup()
             assert json.loads((backup / 'metadata.json').read_text())['verified'] is True
