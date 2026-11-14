@@ -16,6 +16,7 @@ from brewery_config import browser_trusted_hosts
 from brewery_database.recipes import PostgresRecipeDraftStore
 from brewery_database.catalogue import PostgresFermentableCatalog
 from brewery_database.proposals import PostgresConversionProposalStore
+from brewery_database.recipe_details import PostgresRecipeDetailsStore
 from brewery_domain.conversion_proposals import (
     ConversionProposalConflict, ConversionProposalUnavailable, InvalidConversionProposal,
     StaleConversionProposal, propose_single_grain_substitution,
@@ -23,8 +24,10 @@ from brewery_domain.conversion_proposals import (
 from brewery_domain.extract_conversion import FermentableYield
 from brewery_domain.fermentable_catalogue import CatalogUnavailable
 from brewery_domain.recipe_plan import Ingredient, PlanIssue
+from brewery_domain.recipe_details import RecipeDetails, VolumeTarget, normalize_details
 from brewery_domain.recipe_plan import Ingredient, PlanIssue, Step
-from brewery_domain.recipes import DraftConflict, DraftNotFound, InvalidDraft, RecipeDraftService, RecipeOverview, RecipeStorageUnavailable
+from brewery_domain.recipes import (DraftConflict, DraftNotFound, InvalidDraft, RecipeDetailsService,
+                                    RecipeDraftService, RecipeOverview, RecipeStorageUnavailable)
 
 
 PREFIX = '/api/v1/recipe-drafts'
@@ -159,6 +162,27 @@ class StepsV1(StrictModel):
     linked_addition_step_ids: list[str]
 
 
+class VolumeTargetV1(StrictModel):
+    purpose: Literal['fermenter', 'kettle', 'packaged']
+    amount: Annotated[StrictStr, Field(pattern=r'^(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,12})?$', max_length=26)]
+    unit: Literal['mL', 'L', 'US_fl_oz', 'US_gal']
+
+
+class UpdateRecipeDetailsV1(StrictModel):
+    expected_revision: Annotated[StrictInt, Field(ge=1, le=9007199254740991)]
+    source: Annotated[StrictStr, Field(max_length=2000)] | None
+    tags: Annotated[list[Annotated[StrictStr, Field(max_length=100)]], Field(max_length=32)]
+    volume_targets: Annotated[list[VolumeTargetV1], Field(max_length=3)]
+
+
+class RecipeDetailsV1(StrictModel):
+    version_id: str
+    edit_revision: Annotated[int, Field(ge=1, le=9007199254740991)]
+    source: str | None
+    tags: list[str]
+    volume_targets: list[VolumeTargetV1]
+
+
 class FieldIssueV1(StrictModel):
     path: str
     code: str
@@ -275,6 +299,9 @@ def install_recipe_routes(application):
     def service(request):
         return RecipeDraftService(PostgresRecipeDraftStore(request.app.state.database))
 
+    def details_service(request):
+        return RecipeDetailsService(PostgresRecipeDetailsStore(request.app.state.database))
+
     def result(value):
         return RecipeOverviewV1(**asdict(value), status='draft')
 
@@ -310,6 +337,11 @@ def install_recipe_routes(application):
                 dependencies=list(item.dependencies), anchor_step_id=item.anchor_step_id)
                 for item in stored.draft.plan.steps],
             linked_addition_step_ids=sorted({item.step_id for item in stored.draft.plan.additions}))
+
+    def details_result(version_id, revision, details):
+        return RecipeDetailsV1(version_id=version_id, edit_revision=revision, source=details.source,
+            tags=list(details.tags), volume_targets=[VolumeTargetV1(purpose=item.purpose,
+                amount=format(item.amount, 'f'), unit=item.unit) for item in details.volume_targets])
 
     @router.get('', response_model=DraftPageV1)
     def list_drafts(request: Request, limit: Annotated[int, Query(ge=1, le=100)] = 50,
@@ -407,6 +439,20 @@ def install_recipe_routes(application):
         steps = tuple(Step(item.id, version_id, tuple(item.dependencies), item.anchor_step_id,
                            item.title, item.instructions) for item in payload.steps)
         return step_result(service(request).update_steps(version_id, payload.expected_revision, steps))
+
+    @router.get('/{version_id}/details', response_model=RecipeDetailsV1)
+    def load_details(version_id: Annotated[str, Path(min_length=1, max_length=128)], request: Request):
+        revision, details = details_service(request).load(version_id)
+        return details_result(version_id, revision, details)
+
+    @router.patch('/{version_id}/details', response_model=RecipeDetailsV1)
+    def update_details(version_id: Annotated[str, Path(min_length=1, max_length=128)],
+                       payload: UpdateRecipeDetailsV1, request: Request):
+        details = normalize_details(RecipeDetails(source=payload.source, tags=tuple(payload.tags),
+            volume_targets=tuple(VolumeTarget(item.purpose, Decimal(item.amount), item.unit)
+                                 for item in payload.volume_targets)))
+        revision, saved = details_service(request).update(version_id, payload.expected_revision, details)
+        return details_result(version_id, revision, saved)
 
     @application.exception_handler(DraftNotFound)
     async def not_found(request, error):

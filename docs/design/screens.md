@@ -36,7 +36,7 @@ Checks: refresh during a hold without resetting time; recover after service rest
 
 Checks: reject cycles and cross-version links without partial saves; keep references valid after reordering; show all steps at narrow widths; preserve a published version when editing through a new draft.
 
-Current local slice: edit ordered step title/instructions, dependency links, and timing anchors in a draft; move rows with keyboard-accessible buttons while retaining stable IDs. It does not yet model duration, offset, action type, vessel role, targets, confirmation requirement, publication, or batch start.
+Current local slice: edit ordered step title/instructions, dependency links, and timing anchors in a draft; move rows with keyboard-accessible buttons while retaining stable IDs. It does not yet model duration, offset, action type, vessel role, step targets, confirmation requirement, publication, or batch start.
 
 ## UI-03: Batch review and tastings
 
@@ -51,7 +51,7 @@ Checks: multiple tastings retain chronology; invalid ratings are rejected; creat
 
 ## UI-04: Recipe library and ingredient entry
 
-- Search by recipe name and filter by style; show version, readiness, volume, and source.
+- Search by recipe name and filter by style; show version, readiness, volume, and source. Search and style filtering remain unavailable in the current implementation.
 - Provide manual recipe creation and ingredient groups for grain, hops, yeast, and other additions, including quantity, unit, specifications, and intended use.
 - Link scheduled portions to brewing steps rather than duplicating ingredient amounts in free text.
 - Preserve personal, book, and website attribution separately from style. Imported text/file/URL workflows produce reviewable drafts with missing fields visible.
@@ -63,7 +63,7 @@ Checks: edits preserve draft data; invalid quantities/units get field-specific f
 
 Described in the reference; its image was not supplied in the current image set. Show name, description, tags, source, target volumes/gravities, and BJCP selection with guideline edition and code. Support Unclassified / Custom and treat style ranges as references. Keep style and source independent.
 
-Checks: a custom recipe can be saved; classification is preserved in version/batch history; missing required publication fields have clear feedback.
+Checks: a custom recipe can be saved; classification is preserved in version/batch history; missing required publication fields have clear feedback. Current editor coverage includes optional source, descriptive tags, and explicit fermenter/kettle/packaged volume targets; BJCP classification and gravity targets remain unavailable pending D-03 decisions.
 
 ## UI-06: Batch setup
 

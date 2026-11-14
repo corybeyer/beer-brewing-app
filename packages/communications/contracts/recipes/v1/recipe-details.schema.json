@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "VolumeTargetV1": {
+      "additionalProperties": false,
+      "properties": {
+        "purpose": {
+          "enum": [
+            "fermenter",
+            "kettle",
+            "packaged"
+          ],
+          "title": "Purpose",
+          "type": "string"
+        },
+        "amount": {
+          "maxLength": 26,
+          "pattern": "^(?:0|[1-9][0-9]{0,11})(?:\\.[0-9]{1,12})?$",
+          "title": "Amount",
+          "type": "string"
+        },
+        "unit": {
+          "enum": [
+            "mL",
+            "L",
+            "US_fl_oz",
+            "US_gal"
+          ],
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "purpose",
+        "amount",
+        "unit"
+      ],
+      "title": "VolumeTargetV1",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "version_id": {
+      "title": "Version Id",
+      "type": "string"
+    },
+    "edit_revision": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Edit Revision",
+      "type": "integer"
+    },
+    "source": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Source"
+    },
+    "tags": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Tags",
+      "type": "array"
+    },
+    "volume_targets": {
+      "items": {
+        "$ref": "#/$defs/VolumeTargetV1"
+      },
+      "title": "Volume Targets",
+      "type": "array"
+    }
+  },
+  "required": [
+    "version_id",
+    "edit_revision",
+    "source",
+    "tags",
+    "volume_targets"
+  ],
+  "title": "RecipeDetailsV1",
+  "type": "object"
+}

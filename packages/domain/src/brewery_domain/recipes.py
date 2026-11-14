@@ -4,6 +4,7 @@ from typing import Protocol
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from .recipe_plan import Ingredient, PlanIssue, RecipePlan, Step, validate_plan
+from .recipe_details import RecipeDetails
 
 
 @dataclass(frozen=True)
@@ -76,6 +77,13 @@ class RecipeDraftStore(Protocol):
     def list_drafts(self, limit: int, offset: int) -> tuple[RecipeOverview, ...]: ...
 
 
+class RecipeDetailsStore(Protocol):
+    def load(self, version_id: str) -> tuple[int, RecipeDetails] | None: ...
+
+    def save(self, version_id: str, expected_revision: int,
+             details: RecipeDetails) -> tuple[int, RecipeDetails]: ...
+
+
 class RecipeDraftService:
     def __init__(self, store: RecipeDraftStore):
         self.store = store
@@ -128,3 +136,18 @@ class RecipeDraftService:
         current = self.load_steps(version_id)
         plan = replace(current.draft.plan, steps=steps)
         return self.store.save(replace(current.draft, plan=plan), expected_revision)
+
+
+class RecipeDetailsService:
+    def __init__(self, store: RecipeDetailsStore):
+        self.store = store
+
+    def load(self, version_id: str) -> tuple[int, RecipeDetails]:
+        result = self.store.load(version_id)
+        if result is None:
+            raise DraftNotFound('The recipe draft does not exist.')
+        return result
+
+    def update(self, version_id: str, expected_revision: int,
+               details: RecipeDetails) -> tuple[int, RecipeDetails]:
+        return self.store.save(version_id, expected_revision, details)

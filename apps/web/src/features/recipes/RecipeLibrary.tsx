@@ -11,6 +11,7 @@ import {
 import { IngredientEditor } from './IngredientEditor';
 import { ConversionPicker } from './ConversionPicker';
 import { StepEditor } from './StepEditor';
+import { RecipeDetailsEditor } from './RecipeDetailsEditor';
 import './RecipeLibrary.css';
 
 type Selection = { kind: 'create' } | { kind: 'open'; id: string };
@@ -43,14 +44,16 @@ export function RecipeLibrary({ active = true }: { active?: boolean }) {
   const [conversionBusy, setConversionBusy] = useState(false);
   const [stepsDirty, setStepsDirty] = useState(false);
   const [stepsBusy, setStepsBusy] = useState(false);
+  const [detailsDirty, setDetailsDirty] = useState(false);
+  const [detailsBusy, setDetailsBusy] = useState(false);
   const [ingredientEpoch, setIngredientEpoch] = useState(0);
   const creationId = useRef<string | null>(storedKey());
   const listController = useRef<AbortController | null>(null);
   const actionController = useRef<AbortController | null>(null);
   const focusRequested = useRef(false);
   const overviewDirty = selected !== null && (name !== (selected.name ?? '') || description !== (selected.description ?? ''));
-  const planDirty = ingredientsDirty || stepsDirty;
-  const planBusy = ingredientsBusy || stepsBusy;
+  const planDirty = ingredientsDirty || stepsDirty || detailsDirty;
+  const planBusy = ingredientsBusy || stepsBusy || detailsBusy;
   const dirty = overviewDirty || planDirty;
 
   const refresh = useCallback(async (offset = 0) => {
@@ -85,7 +88,7 @@ export function RecipeLibrary({ active = true }: { active?: boolean }) {
 
   function show(draft: RecipeOverview) {
     focusRequested.current = true;
-    setIngredientEpoch((epoch) => epoch + 1); setIngredientsDirty(false); setStepsDirty(false);
+    setIngredientEpoch((epoch) => epoch + 1); setIngredientsDirty(false); setStepsDirty(false); setDetailsDirty(false);
     setSelected(draft); setName(draft.name ?? ''); setDescription(draft.description ?? '');
     setConflict(false); setLatest(null); setNotice('');
   }
@@ -188,10 +191,10 @@ export function RecipeLibrary({ active = true }: { active?: boolean }) {
               value={description} disabled={busy !== null} error={fieldError('description')} onChange={(event) => setDescription(event.target.value)} />
             <p className="muted small" aria-live="polite">{overviewDirty ? 'Unsaved changes' : 'Saved draft overview'}</p>
             <Button type="submit" busy={busy === 'save'} disabled={planBusy || conversionBusy || busy !== null || !overviewDirty || planDirty || conflict}>{busy === 'save' ? 'Saving…' : 'Save overview'}</Button>
-            {planDirty && <p>Save or discard your ingredient or step changes before saving the overview.</p>}
+            {planDirty && <p>Save or discard your ingredient, step, or recipe detail changes before saving the overview.</p>}
           </form>
         </Card> : <Card className="content-card"><h2>Start with the idea.</h2><p className="muted">Create a recipe or open a saved draft to give it a name and description.</p></Card>}
-        {selected && <IngredientEditor key={`${selected.version_id}-${ingredientEpoch}-ingredients`} versionId={selected.version_id} editRevision={selected.edit_revision} disabled={busy !== null || stepsDirty}
+        {selected && <IngredientEditor key={`${selected.version_id}-${ingredientEpoch}-ingredients`} versionId={selected.version_id} editRevision={selected.edit_revision} disabled={busy !== null || stepsDirty || detailsDirty || detailsBusy}
           onDirtyChange={setIngredientsDirty} onBusyChange={setIngredientsBusy} onSaved={(value) => {
             setSelected((current) => current && current.version_id === value.version_id && current.edit_revision === value.edit_revision - 1
               ? { ...current, edit_revision: value.edit_revision } : current);
@@ -203,8 +206,14 @@ export function RecipeLibrary({ active = true }: { active?: boolean }) {
           }} onReviewLatest={() => selected && void run('review', (signal) => loadDraft(selected.version_id, signal), (draft) => {
             setLatest(draft); setConflict(true); setError(new RecipeRequestError('conflict', 'This draft changed during conversion. Review the latest saved recipe before creating a fresh preview.'));
           })} />}
-        <p id="recipe-availability" className="muted small">Name, description, ingredients, ordered steps, and reviewed one-grain conversions are available. Search, style, targets, imports, and publishing are not editable yet.</p>
-        {selected && <StepEditor key={`${selected.version_id}-${ingredientEpoch}-steps`} versionId={selected.version_id} editRevision={selected.edit_revision} disabled={busy !== null || ingredientsBusy || ingredientsDirty || conversionBusy || conflict || latest !== null}
+        <p id="recipe-availability" className="muted small">Name, description, ingredients, ordered steps, source, tags, volume targets, and reviewed one-grain conversions are available. BJCP style search, gravity targets, imports, and publishing are not editable yet.</p>
+        {selected && <RecipeDetailsEditor key={`${selected.version_id}-${ingredientEpoch}-details`} versionId={selected.version_id}
+          editRevision={selected.edit_revision} disabled={busy !== null || ingredientsBusy || ingredientsDirty || stepsBusy || stepsDirty || conversionBusy || conflict || latest !== null}
+          onDirtyChange={setDetailsDirty} onBusyChange={setDetailsBusy} onSaved={(value) => {
+            setSelected((current) => current && current.version_id === value.version_id && current.edit_revision === value.edit_revision - 1
+              ? { ...current, edit_revision: value.edit_revision } : current);
+          }} />}
+        {selected && <StepEditor key={`${selected.version_id}-${ingredientEpoch}-steps`} versionId={selected.version_id} editRevision={selected.edit_revision} disabled={busy !== null || ingredientsBusy || ingredientsDirty || detailsBusy || detailsDirty || conversionBusy || conflict || latest !== null}
           onDirtyChange={setStepsDirty} onBusyChange={setStepsBusy} onSaved={(value) => {
             setSelected((current) => current && current.version_id === value.version_id && current.edit_revision === value.edit_revision - 1
               ? { ...current, edit_revision: value.edit_revision } : current);

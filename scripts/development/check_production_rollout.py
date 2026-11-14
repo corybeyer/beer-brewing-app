@@ -57,7 +57,7 @@ def main():
                    check=True, capture_output=True)
     project = 'brewery-rollout-' + uuid.uuid4().hex[:12]
     tags = {name: project + ':' + name for name in
-            ('app', 'operator', 'smoke', 'broken', 'recipe-app', 'recipe-operator', 'broken-recipe', 'baseline-app', 'baseline-operator', 'catalogue-app', 'catalogue-operator', 'broken-catalogue')}
+            ('app', 'operator', 'smoke', 'broken', 'proposal-app', 'proposal-operator', 'broken-proposal', 'recipe-app', 'recipe-operator', 'broken-recipe', 'baseline-app', 'baseline-operator', 'catalogue-app', 'catalogue-operator', 'broken-catalogue')}
     with tempfile.TemporaryDirectory(prefix='brewery-rollout-') as directory:
         root = Path(directory)
         (root / 'secrets').mkdir(mode=0o700)
@@ -79,13 +79,24 @@ def main():
                 f'FROM {tags["app"]}\nENV WEB_ASSETS_DIRECTORY=/nonexistent\n').encode())
             # Fixtures reproduce reviewed earlier readiness/migration contracts.
             # They are synthetic fixtures, not previously published images.
-            deployment.command('build', '-t', tags['catalogue-app'], '-', input=(
+            deployment.command('build', '-t', tags['proposal-app'], '-', input=(
                 f'FROM {tags["app"]}\nUSER root\n'
+                'RUN python -c "from pathlib import Path; import brewery_database.connection as c; '
+                'p=Path(c.__file__); p.write_text(p.read_text().replace(\'0005_recipe_details\', \'0004_conversion_proposals\'))"\n'
+                'USER brewery\n').encode())
+            deployment.command('build', '-t', tags['proposal-operator'], '-', input=(
+                f'FROM {tags["operator"]}\nUSER root\n'
+                'RUN rm /srv/brewery/packages/database/migrations/versions/0005_recipe_details.py\n'
+                'USER brewery\n').encode())
+            deployment.command('build', '-t', tags['broken-proposal'], '-', input=(
+                f'FROM {tags["proposal-app"]}\nENV WEB_ASSETS_DIRECTORY=/nonexistent\n').encode())
+            deployment.command('build', '-t', tags['catalogue-app'], '-', input=(
+                f'FROM {tags["proposal-app"]}\nUSER root\n'
                 'RUN python -c "from pathlib import Path; import brewery_database.connection as c; '
                 'p=Path(c.__file__); p.write_text(p.read_text().replace(\'0004_conversion_proposals\', \'0003_fermentable_catalogue\'))"\n'
                 'USER brewery\n').encode())
             deployment.command('build', '-t', tags['catalogue-operator'], '-', input=(
-                f'FROM {tags["operator"]}\nUSER root\n'
+                f'FROM {tags["proposal-operator"]}\nUSER root\n'
                 'RUN rm /srv/brewery/packages/database/migrations/versions/0004_conversion_proposals.py\n'
                 'USER brewery\n').encode())
             deployment.command('build', '-t', tags['broken-catalogue'], '-', input=(
@@ -205,7 +216,7 @@ def main():
             deployment.validate_service('brewery')
             print('RUN: fail catalogue-to-proposal candidate, retain smoke, then adopt proposal API', flush=True)
             try:
-                deployment.deploy_images(tags['broken'], tags['operator'])
+                deployment.deploy_images(tags['broken-proposal'], tags['proposal-operator'])
             except subprocess.CalledProcessError:
                 pass
             else:
@@ -220,7 +231,7 @@ def main():
                 assert response.code == 404
             else:
                 raise RuntimeError('Incompatible catalogue API was not replaced by retained smoke')
-            deployment.deploy_images(tags['app'], tags['operator'])
+            deployment.deploy_images(tags['proposal-app'], tags['proposal-operator'])
             deployment.compose('exec', '-T', 'brewery', 'python', '-c', PROPOSAL_FIXTURE)
             backup = deployment.backup()
             assert json.loads((backup / 'metadata.json').read_text())['verified'] is True
@@ -229,11 +240,32 @@ def main():
                        for name in ('admin-password', 'migrator-password', 'app-password'))
             print('RUN: reject failed candidate while production and data remain ready', flush=True)
             try:
-                deployment.deploy_images(tags['broken'], tags['operator'])
+                deployment.deploy_images(tags['broken-proposal'], tags['proposal-operator'])
             except subprocess.CalledProcessError:
                 pass
             else:
                 raise RuntimeError('Broken candidate unexpectedly deployed')
+            deployment.validate_service('brewery')
+            print('RUN: fail details candidate, retain smoke, then adopt details API', flush=True)
+            try:
+                deployment.deploy_images(tags['broken'], tags['operator'])
+            except subprocess.CalledProcessError:
+                pass
+            else:
+                raise RuntimeError('Broken details upgrade unexpectedly deployed')
+            assert deployment.revision() == '0005_recipe_details'
+            assert not (root / 'state.json').exists()
+            deployment.validate_service('brewery')
+            deployment.deploy_images(tags['app'], tags['operator'])
+            backup = deployment.backup()
+            assert json.loads((backup / 'metadata.json').read_text())['verified'] is True
+            print('RUN: reject details-to-proposal downgrade without changing production', flush=True)
+            try:
+                deployment.deploy_images(tags['proposal-app'], tags['proposal-operator'])
+            except ValueError:
+                pass
+            else:
+                raise RuntimeError('Reverse details transition unexpectedly accepted')
             deployment.validate_service('brewery')
             assert deployment.sql('SELECT note FROM rollout_fixture') == 'retained through rollout and restore'
             print('RUN: reject proposal-to-catalogue downgrade without changing production', flush=True)
