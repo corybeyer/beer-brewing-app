@@ -7,7 +7,7 @@ import unittest
 
 from brewery_domain.conversion_proposals import (
     ConversionProposal, IngredientConversion, InvalidConversionProposal, StaleConversionProposal,
-    capture_proposal, require_current_proposal, validate_proposal,
+    capture_proposal, propose_single_grain_substitution, require_current_proposal, validate_proposal,
 )
 from brewery_domain.extract_conversion import FermentableYield, Mass, convert_fermentable
 from brewery_domain.recipe_plan import Addition, Ingredient, RecipePlan, Step
@@ -59,6 +59,26 @@ class ConversionProposalTests(unittest.TestCase):
             value.original.draft.name = 'Changed'
         with self.assertRaises(FrozenInstanceError):
             value.conversions[0].result.amount = Fraction(5)
+
+    def test_builds_explicit_one_grain_preview_and_rounds_only_display_amount(self):
+        value = proposal()
+        result = propose_single_grain_substitution('preview-1', datetime(2026, 11, 8, tzinfo=timezone.utc),
+            value.original, 'extract', value.catalogue[0], value.conversions[0].result.source_yield,
+            value.conversions[0].result.target_yield, 'lb')
+        self.assertEqual(result.conversions[0].result.amount, Fraction(180, 37))
+        self.assertEqual(result.proposed.plan.ingredients[0].quantity, D('4.865'))
+        self.assertIn('0.001 lb', result.conversions[0].weighing_note)
+        self.assertEqual(result.proposed.plan.additions[0].quantity, D('2.4325'))
+        self.assertEqual(validate_proposal(result), ())
+
+    def test_proposal_rejects_unknown_portions_with_incompatible_units(self):
+        value = proposal()
+        original = replace(value.original, draft=replace(value.original.draft, plan=replace(value.original.draft.plan,
+            additions=(replace(value.original.draft.plan.additions[0], quantity=None, unit='kg'),))))
+        with self.assertRaises(InvalidConversionProposal):
+            propose_single_grain_substitution('preview-2', datetime(2026, 11, 8, tzinfo=timezone.utc),
+                original, 'extract', value.catalogue[0], value.conversions[0].result.source_yield,
+                value.conversions[0].result.target_yield, 'lb')
 
     def test_independent_recipe_or_catalogue_changes_do_not_reinterpret_snapshot(self):
         value = proposal()

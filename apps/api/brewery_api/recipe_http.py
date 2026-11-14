@@ -1,5 +1,6 @@
 """Version 1 overview transport; domain services preserve the complete plan."""
 from dataclasses import asdict
+from datetime import datetime, timezone
 from decimal import Decimal
 from ipaddress import ip_address, ip_network
 from typing import Annotated, Literal
@@ -13,8 +14,16 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, UUID4
 
 from brewery_config import browser_trusted_hosts
 from brewery_database.recipes import PostgresRecipeDraftStore
-from brewery_domain.recipe_plan import Ingredient
-from brewery_domain.recipes import DraftConflict, DraftNotFound, InvalidDraft, RecipeDraftService, RecipeStorageUnavailable
+from brewery_database.catalogue import PostgresFermentableCatalog
+from brewery_database.proposals import PostgresConversionProposalStore
+from brewery_domain.conversion_proposals import (
+    ConversionProposalConflict, ConversionProposalUnavailable, InvalidConversionProposal,
+    StaleConversionProposal, propose_single_grain_substitution,
+)
+from brewery_domain.extract_conversion import FermentableYield
+from brewery_domain.fermentable_catalogue import CatalogUnavailable
+from brewery_domain.recipe_plan import Ingredient, PlanIssue
+from brewery_domain.recipes import DraftConflict, DraftNotFound, InvalidDraft, RecipeDraftService, RecipeOverview, RecipeStorageUnavailable
 
 
 PREFIX = '/api/v1/recipe-drafts'
@@ -78,6 +87,54 @@ class IngredientsV1(StrictModel):
     version_id: str
     edit_revision: Annotated[int, Field(ge=1, le=9007199254740991)]
     ingredients: list[StoredIngredientV1]
+
+
+class GrainProfileV1(StrictModel):
+    revision_id: str
+    name: str
+    manufacturer: str | None
+    potential_ppg: str | None
+    potential_status: str
+    potential_note: str | None
+    source_url: str | None
+    flavor_notes: str | None
+    flavor_tags: list[str]
+    source_label: str
+    source_retrieved_at: str
+
+
+class ConversionRequestV1(StrictModel):
+    expected_revision: Annotated[StrictInt, Field(ge=1, le=9007199254740991)]
+    proposal_id: UUID4
+    source_ingredient_id: Annotated[StrictStr, Field(min_length=1, max_length=128)]
+    target_revision_id: Annotated[StrictStr, Field(min_length=1, max_length=128)]
+    source_potential_ppg: Annotated[StrictStr, Field(pattern=r'^[0-9]+(?:\.[0-9]{1,12})?$', max_length=32)]
+    source_recovery: Annotated[StrictStr, Field(pattern=r'^(?:0?\.[0-9]{1,12}|1(?:\.0{1,12})?)$', max_length=32)]
+    source_provenance: Annotated[StrictStr, Field(min_length=1, max_length=1000)]
+    target_potential_ppg: Annotated[StrictStr, Field(pattern=r'^[0-9]+(?:\.[0-9]{1,12})?$', max_length=32)] | None = None
+    target_recovery: Annotated[StrictStr, Field(pattern=r'^(?:0?\.[0-9]{1,12}|1(?:\.0{1,12})?)$', max_length=32)]
+    target_provenance: Annotated[StrictStr, Field(min_length=1, max_length=1000)]
+    comparison_point: Literal['kettle', 'fermenter']
+    target_unit: Literal['g', 'kg', 'oz', 'lb']
+
+
+class ApplyConversionV1(StrictModel):
+    expected_revision: Annotated[StrictInt, Field(ge=1, le=9007199254740991)]
+
+
+class ConversionResponseV1(StrictModel):
+    proposal_id: str
+    source_ingredient_id: str
+    target_ingredient_id: str
+    target_name: str
+    target_unit: str
+    target_amount: str
+    exact_amount_numerator: str
+    exact_amount_denominator: str
+    gravity_points_numerator: str
+    gravity_points_denominator: str
+    comparison_point: str
+    weighing_note: str
 
 
 class FieldIssueV1(StrictModel):
@@ -204,6 +261,26 @@ def install_recipe_routes(application):
                 quantity=format(item.quantity, 'f') if item.quantity is not None else None, unit=item.unit)
                 for item in stored.draft.plan.ingredients])
 
+    def conversion_result(value):
+        conversion = value.conversions[0]
+        result = conversion.result
+        target = next(item for item in value.proposed.plan.ingredients if item.id == conversion.target_ingredient_id)
+        return ConversionResponseV1(proposal_id=value.id, source_ingredient_id=conversion.source_ingredient_id,
+            target_ingredient_id=target.id, target_name=target.name or 'Grain', target_unit=target.unit or result.unit,
+            target_amount=format(target.quantity, 'f') if target.quantity is not None else '',
+            exact_amount_numerator=str(result.amount.numerator), exact_amount_denominator=str(result.amount.denominator),
+            gravity_points_numerator=str(result.gravity_points_gallons.numerator),
+            gravity_points_denominator=str(result.gravity_points_gallons.denominator),
+            comparison_point=result.source_yield.comparison_point, weighing_note=conversion.weighing_note or '')
+
+    def grain_result(profile):
+        return GrainProfileV1(revision_id=profile.revision_id, name=profile.name, manufacturer=profile.manufacturer,
+            potential_ppg=format(profile.potential_ppg, 'f') if profile.potential_ppg is not None else None,
+            potential_status=profile.potential_status, potential_note=profile.potential_note,
+            source_url=profile.source_url,
+            flavor_notes=profile.flavor_notes, flavor_tags=list(profile.flavor_tags), source_label=profile.source_label,
+            source_retrieved_at=profile.source_retrieved_at.isoformat())
+
     @router.get('', response_model=DraftPageV1)
     def list_drafts(request: Request, limit: Annotated[int, Query(ge=1, le=100)] = 50,
                     offset: Annotated[int, Query(ge=0, le=100000)] = 0):
@@ -238,11 +315,67 @@ def install_recipe_routes(application):
             for item in payload.ingredients)
         return ingredient_result(service(request).update_ingredients(version_id, payload.expected_revision, ingredients))
 
+    @router.get('/catalogue/grains', response_model=list[GrainProfileV1])
+    def list_grains(request: Request):
+        return [grain_result(item) for item in PostgresFermentableCatalog(request.app.state.database).list_grains()]
+
+    @router.post('/{version_id}/conversion-proposals', response_model=ConversionResponseV1, status_code=201)
+    def create_conversion(version_id: Annotated[str, Path(min_length=1, max_length=128)], payload: ConversionRequestV1, request: Request):
+        draft = service(request).store.load(version_id)
+        if draft is None:
+            raise DraftNotFound('The draft does not exist.')
+        if draft.edit_revision != payload.expected_revision:
+            raise DraftConflict('The draft changed; review the latest saved version before creating a proposal.')
+        profile = PostgresFermentableCatalog(request.app.state.database).load(payload.target_revision_id)
+        if profile is None or profile.kind != 'grain':
+            raise InvalidConversionProposal((PlanIssue('invalid_target', 'target_revision_id', 'Choose a grain profile from the catalogue.'),))
+        if profile.potential_ppg is not None:
+            if payload.target_potential_ppg is not None and Decimal(payload.target_potential_ppg) != profile.potential_ppg:
+                raise InvalidConversionProposal((PlanIssue('potential_mismatch', 'target_potential_ppg',
+                    'Use the potential recorded in this catalogue revision.'),))
+            target_potential = profile.potential_ppg
+        elif payload.target_potential_ppg is not None:
+            target_potential = Decimal(payload.target_potential_ppg)
+        else:
+            raise InvalidConversionProposal((PlanIssue('missing_target_potential', 'target_potential_ppg',
+                'Enter an explicit target potential for this profile.'),))
+        source_yield = FermentableYield(Decimal(payload.source_potential_ppg), Decimal(payload.source_recovery),
+            payload.comparison_point, payload.source_provenance)
+        target_provenance = payload.target_provenance
+        if profile.potential_ppg is None:
+            target_provenance = f'{target_provenance}; manually supplied potential for {profile.name}'
+        target_yield = FermentableYield(target_potential, Decimal(payload.target_recovery),
+            payload.comparison_point, target_provenance)
+        proposal = propose_single_grain_substitution(str(payload.proposal_id), datetime.now(timezone.utc),
+            draft, payload.source_ingredient_id, profile, source_yield, target_yield, payload.target_unit)
+        saved = PostgresConversionProposalStore(request.app.state.database).append(proposal)
+        return conversion_result(saved)
+
+    @router.get('/{version_id}/conversion-proposals/{proposal_id}', response_model=ConversionResponseV1)
+    def load_conversion(version_id: Annotated[str, Path(min_length=1, max_length=128)], proposal_id: UUID4, request: Request):
+        value = PostgresConversionProposalStore(request.app.state.database).load(str(proposal_id))
+        if value is None or value.original.draft.plan.version_id != version_id:
+            raise DraftNotFound('The proposal does not exist.')
+        return conversion_result(value)
+
+    @router.post('/{version_id}/conversion-proposals/{proposal_id}/apply', response_model=RecipeOverviewV1)
+    def apply_conversion(version_id: Annotated[str, Path(min_length=1, max_length=128)], proposal_id: UUID4,
+                         payload: ApplyConversionV1, request: Request):
+        value = PostgresConversionProposalStore(request.app.state.database).load(str(proposal_id))
+        if value is None or value.original.draft.plan.version_id != version_id:
+            raise DraftNotFound('The proposal does not exist.')
+        applied = PostgresConversionProposalStore(request.app.state.database).apply(str(proposal_id), payload.expected_revision)
+        draft = applied.draft
+        return result(RecipeOverview(draft.recipe_id, draft.plan.version_id, draft.version_number,
+                                     draft.name, draft.description, applied.edit_revision))
+
     @application.exception_handler(DraftNotFound)
     async def not_found(request, error):
         return error_response(404, 'not_found', 'This draft could not be found.')
 
     @application.exception_handler(DraftConflict)
+    @application.exception_handler(StaleConversionProposal)
+    @application.exception_handler(ConversionProposalConflict)
     async def conflict(request, error):
         return error_response(409, 'conflict', 'This draft changed elsewhere. Review the latest saved version before retrying.')
 
@@ -253,6 +386,15 @@ def install_recipe_routes(application):
     @application.exception_handler(RecipeStorageUnavailable)
     async def unavailable(request, error):
         return error_response(503, 'unavailable', 'Recipe storage is unavailable. Your entered values have not been saved.')
+
+    @application.exception_handler(ConversionProposalUnavailable)
+    @application.exception_handler(CatalogUnavailable)
+    async def conversion_unavailable(request, error):
+        return error_response(503, 'unavailable', 'Conversion data is temporarily unavailable. Please retry.')
+
+    @application.exception_handler(InvalidConversionProposal)
+    async def invalid_conversion(request, error):
+        return error_response(422, 'validation_error', 'Check the conversion inputs.', [asdict(issue) for issue in error.issues])
 
     @application.exception_handler(RequestValidationError)
     async def invalid_request(request, error):

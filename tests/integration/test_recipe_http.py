@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 from uuid import uuid4
 from unittest.mock import patch
+from decimal import Decimal
 
 from alembic import command
 from fastapi.testclient import TestClient
@@ -11,8 +12,10 @@ from sqlalchemy import text
 
 from brewery_api.api import create_app
 from brewery_database.recipes import PostgresRecipeDraftStore
-from brewery_domain.recipe_plan import Ingredient, Step
+from brewery_database.catalogue import PostgresFermentableCatalog
+from brewery_domain.recipe_plan import Addition, Ingredient, RecipePlan, Step
 from tests.fixtures.postgres_support import PostgreSQLTestCase
+from tests.fixtures.catalogue_support import grain
 
 
 PATH = '/api/v1/recipe-drafts'
@@ -31,6 +34,44 @@ class RecipeHTTPTestCase(PostgreSQLTestCase):
 
 
 class RecipeHTTPTests(RecipeHTTPTestCase):
+    def test_grain_conversion_preview_and_explicit_apply(self):
+        catalogue = PostgresFermentableCatalog(self.engine)
+        self.assertEqual(self.client.get(f'{PATH}/catalogue/grains').json(), [])
+        profile = grain()
+        catalogue.append(profile)
+        listed = self.client.get(f'{PATH}/catalogue/grains')
+        self.assertEqual(listed.status_code, 200)
+        self.assertEqual(listed.json()[0]['revision_id'], profile.revision_id)
+
+        draft = self.create().json()
+        store = PostgresRecipeDraftStore(self.engine)
+        current = store.load(draft['version_id'])
+        plan = RecipePlan(draft['version_id'],
+            (Ingredient('extract', draft['version_id'], Decimal('3'), 'lb', 'Manual extract', 'other'),),
+            (Step('mash', draft['version_id'], title='Review mash'),),
+            (Addition(draft['version_id'], 'mash', 'extract', Decimal('1.5'), 'lb'),))
+        current = store.save(replace(current.draft, plan=plan), current.edit_revision)
+        response = self.client.post(f"{PATH}/{draft['version_id']}/conversion-proposals", json={
+            'expected_revision': current.edit_revision, 'proposal_id': str(uuid4()),
+            'source_ingredient_id': 'extract', 'target_revision_id': profile.revision_id,
+            'source_potential_ppg': '45', 'source_recovery': '1', 'source_provenance': 'Explicit extract assumption',
+            'target_potential_ppg': None, 'target_recovery': '0.75', 'target_provenance': 'Explicit mash recovery',
+            'comparison_point': 'kettle', 'target_unit': 'lb'})
+        self.assertEqual(response.status_code, 201, response.text)
+        preview = response.json()
+        self.assertTrue(preview['target_amount'])
+        self.assertEqual(preview['source_ingredient_id'], 'extract')
+        applied = self.client.post(f"{PATH}/{draft['version_id']}/conversion-proposals/{preview['proposal_id']}/apply",
+                                   json={'expected_revision': current.edit_revision})
+        self.assertEqual(applied.status_code, 200, applied.text)
+        self.assertEqual(applied.json()['edit_revision'], current.edit_revision + 1)
+        saved = store.load(draft['version_id'])
+        self.assertEqual(saved.draft.plan.ingredients[0].id, preview['target_ingredient_id'])
+        self.assertEqual(saved.draft.plan.additions[0].ingredient_id, preview['target_ingredient_id'])
+        replay = self.client.post(f"{PATH}/{draft['version_id']}/conversion-proposals/{preview['proposal_id']}/apply",
+                                  json={'expected_revision': applied.json()['edit_revision']})
+        self.assertEqual(replay.status_code, 409)
+
     def test_idempotent_create_returns_current_draft_after_retry(self):
         key = str(uuid4())
         first = self.create(key)

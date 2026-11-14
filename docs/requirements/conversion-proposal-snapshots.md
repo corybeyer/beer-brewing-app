@@ -1,6 +1,6 @@
 # Conversion proposal domain snapshots
 
-C2b, supporting M2/UI-04/UI-05 and M6 reviewed adaptations (AC-01/AC-02/AC-13; domain evidence toward CV-08/CV-09). [Proposed ADR-0013](../architecture/decisions/0013-conversion-proposal-snapshots.md) records the initial domain boundary. [Transactional retention](../architecture/conversion-proposal-storage.md) is now in development under proposed ADR-0014; proposal Apply and full CV-12 release verification remain separate work.
+C2b, supporting M2/UI-04/UI-05 and M6 reviewed adaptations (AC-01/AC-02/AC-11/AC-13; evidence toward CV-08/CV-09/CV-11). [Proposed ADR-0013](../architecture/decisions/0013-conversion-proposal-snapshots.md) records the snapshot boundary. [Transactional retention and atomic Apply](../architecture/conversion-proposal-storage.md) implement this one-to-one slice under proposed ADR-0014; full CV-12 release verification remains separate.
 
 ## Values and capture
 
@@ -14,7 +14,7 @@ Up to 200 full catalogue profiles can be retained. Every known extract component
 
 ## Calculation and recipe integrity
 
-Recompute each result with the C1 domain calculator and compare its exact rational mass, gravity contribution, assumptions, and calculation version. A rounded decimal cannot replace the exact result. The source mass must equal the complete original ingredient quantity in its recorded unit. The proposed quantity uses the result unit. A different weighing quantity requires a nonblank explanation, retained alongside the unrounded result. This allows explicit reviewed rounding/adjustments; it does not automatically recommend them.
+Recompute each result with the C1 domain calculator and compare its exact rational mass, gravity contribution, assumptions, and calculation version. A rounded decimal cannot replace the exact result. The source mass must equal the complete original ingredient quantity in its recorded unit. The proposed quantity uses the result unit. The picker displays a mass rounded to 0.001 of the chosen unit, retains the unrounded exact result and a scale-precision note, and requires a separate Apply action. This is display rounding, not a claim that every scale can measure that increment.
 
 Recipe identity, version identity/number, name, description, step records, ingredient order, and unrelated ingredients/additions stay unchanged. Each changed ingredient needs evidence. Source ingredients must explicitly use grain/other categories; selected grain profiles require grain, DME/LME profiles require other. No hops/yeast conversion, inferred classification, blend generation, step adaptation, publication, or batch mutation is performed.
 
@@ -22,12 +22,12 @@ Preserve addition count, order, and step links; remap the ingredient link for th
 
 ## Revision review and future storage
 
-`require_current_proposal(proposal, current)` validates the proposal and compares the complete original draft and edit revision to a freshly loaded `StoredDraft`. Missing, different, or edited drafts raise `StaleConversionProposal`. This is a review-time check. A change after the check remains possible; a future retention/apply adapter must repeat the check inside its transaction and save nothing on conflict. The pure helper supplies no concurrent-write or durable-restart guarantee.
+`require_current_proposal(proposal, current)` validates the proposal and compares the complete original draft and edit revision to a freshly loaded `StoredDraft`. Missing, different, or edited drafts raise `StaleConversionProposal`. Persistence repeats this check inside both append and Apply transactions. Apply also locks the recipe version, revalidates the proposed plan, replaces all plan rows, and advances one shared revision atomically; stale/replayed requests conflict without partial writes.
 
-The pure `ConversionProposalStore` append/load port now has a PostgreSQL retention adapter in development. It locks and compares the current draft inside the insert transaction, checks authoritative product copies, and saves a self-contained historical document. This supplies save-time coherence; it does not authorize a later Apply. See the [owning storage specification](../architecture/conversion-proposal-storage.md) for format, grants, migration/restore, and release requirements.
+The `ConversionProposalStore` append/load/apply port has a PostgreSQL retention adapter and versioned local API. The UI lists sourced grain profiles, requires explicit potentials/recoveries/provenance/comparison point, shows exact and display-rounded results, and separates preview from Apply. A missing catalogue profile produces an empty state. See the [owning storage specification](../architecture/conversion-proposal-storage.md) and [HTTP contract](../../packages/communications/contracts/recipes/v1/README.md) for locking, migration/restore, and transport details.
 
-C3/C4 own matching, blend/ranking generation, mash/boil/hop review, versioned API errors, picker/preview, explicit Apply, and transactionally safe recipe changes. This first format is intentionally limited to C1 one-to-one substitutions; extend/version it explicitly for blends or step adaptation. A valid snapshot does not establish flavor equivalence, mash feasibility, publication readiness, or any performed physical action.
+C3 owns ranking and selected-blend sizing; those domain contracts do not generate persisted blend proposals. This C4 UI only offers one-to-one substitutions and does not implement ranking, optional flavor variations, blends, or mash-step adaptation. A valid snapshot does not establish flavor equivalence, mash feasibility, publication readiness, or any performed physical action.
 
 ## Verification
 
-`tests/unit/test_conversion_proposals.py` exercises complete immutable snapshots, retained exact recurring results, low Decimal precision, stale/wrong/same-revision-edited drafts, altered arithmetic/version evidence, missing/overridden product yields, full extract-component closure, independent future catalogue changes, explicit weighing adjustments, unchanged metadata/steps/unrelated ingredients, reordered/missing/rerouted additions, unknown quantity/unit preservation, conflicting product identities, duplicate conversion evidence, mutable nested inputs, and resource-bounded quantities. No database/API/browser behavior is implemented by this slice.
+Domain tests exercise complete snapshots, exact recurring results, explicit assumptions, and portion remapping. Real PostgreSQL integration tests exercise append, revision-locked atomic Apply, whole-plan replacement, and stale/replayed conflicts. HTTP integration verifies empty/populated catalogue responses, preview creation, Apply, and replay rejection. Browser behavior and all CI/release checks remain separately verified.

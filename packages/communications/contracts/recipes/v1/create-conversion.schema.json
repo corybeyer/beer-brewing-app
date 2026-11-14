@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "expected_revision": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Expected Revision",
+      "type": "integer"
+    },
+    "proposal_id": {
+      "format": "uuid4",
+      "title": "Proposal Id",
+      "type": "string"
+    },
+    "source_ingredient_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Source Ingredient Id",
+      "type": "string"
+    },
+    "target_revision_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Target Revision Id",
+      "type": "string"
+    },
+    "source_potential_ppg": {
+      "maxLength": 32,
+      "pattern": "^[0-9]+(?:\\.[0-9]{1,12})?$",
+      "title": "Source Potential Ppg",
+      "type": "string"
+    },
+    "source_recovery": {
+      "maxLength": 32,
+      "pattern": "^(?:0?\\.[0-9]{1,12}|1(?:\\.0{1,12})?)$",
+      "title": "Source Recovery",
+      "type": "string"
+    },
+    "source_provenance": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "title": "Source Provenance",
+      "type": "string"
+    },
+    "target_potential_ppg": {
+      "anyOf": [
+        {
+          "maxLength": 32,
+          "pattern": "^[0-9]+(?:\\.[0-9]{1,12})?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target Potential Ppg"
+    },
+    "target_recovery": {
+      "maxLength": 32,
+      "pattern": "^(?:0?\\.[0-9]{1,12}|1(?:\\.0{1,12})?)$",
+      "title": "Target Recovery",
+      "type": "string"
+    },
+    "target_provenance": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "title": "Target Provenance",
+      "type": "string"
+    },
+    "comparison_point": {
+      "enum": [
+        "kettle",
+        "fermenter"
+      ],
+      "title": "Comparison Point",
+      "type": "string"
+    },
+    "target_unit": {
+      "enum": [
+        "g",
+        "kg",
+        "oz",
+        "lb"
+      ],
+      "title": "Target Unit",
+      "type": "string"
+    }
+  },
+  "required": [
+    "expected_revision",
+    "proposal_id",
+    "source_ingredient_id",
+    "target_revision_id",
+    "source_potential_ppg",
+    "source_recovery",
+    "source_provenance",
+    "target_recovery",
+    "target_provenance",
+    "comparison_point",
+    "target_unit"
+  ],
+  "title": "ConversionRequestV1",
+  "type": "object"
+}

@@ -1,11 +1,11 @@
-"""Immutable C1 substitution evidence; no persistence, ranking, or recipe writes."""
+"""Immutable conversion proposals and their storage port; no adapters or ranking."""
 from dataclasses import dataclass, replace
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation, localcontext
 from fractions import Fraction
 from typing import Protocol
 
-from .extract_conversion import ConversionInputError, ConversionResult, convert_fermentable
+from .extract_conversion import ConversionInputError, ConversionResult, FermentableYield, Mass, convert_fermentable
 from .fermentable_catalogue import CatalogRevision, validate_catalog_revision
 from .recipe_plan import Addition, Ingredient, PlanIssue, RecipePlan, Step
 from .recipes import RecipeDraft, StoredDraft, validate_draft
@@ -56,6 +56,95 @@ class ConversionProposalStore(Protocol):
     def append(self, proposal: ConversionProposal) -> ConversionProposal: ...
 
     def load(self, proposal_id: str) -> ConversionProposal | None: ...
+
+    def apply(self, proposal_id: str, expected_revision: int) -> StoredDraft: ...
+
+
+def propose_single_grain_substitution(
+    proposal_id: str,
+    created_at: datetime,
+    original: StoredDraft,
+    source_ingredient_id: str,
+    target: CatalogRevision,
+    source_yield: FermentableYield,
+    target_yield: FermentableYield,
+    target_unit: str,
+) -> ConversionProposal:
+    """Create a reviewed one-grain proposal; never invent a bill or process input."""
+    if (not isinstance(original, StoredDraft) or not isinstance(original.draft, RecipeDraft)
+            or not isinstance(original.draft.plan, RecipePlan)):
+        raise InvalidConversionProposal((PlanIssue('invalid_original', 'original',
+            'Supply a complete saved recipe draft.'),))
+    source = next((item for item in original.draft.plan.ingredients if item.id == source_ingredient_id), None)
+    if source is None:
+        raise InvalidConversionProposal((PlanIssue('unknown_ingredient', 'source_ingredient_id',
+            'Choose an ingredient in the current recipe.'),))
+    if source.category not in ('grain', 'other') or source.quantity is None or source.unit is None:
+        raise InvalidConversionProposal((PlanIssue('unsupported_source', 'source_ingredient_id',
+            'Choose a grain or other fermentable with a saved mass and unit.'),))
+    if not isinstance(target, CatalogRevision) or target.kind != 'grain':
+        raise InvalidConversionProposal((PlanIssue('invalid_target', 'target_catalogue_revision_id',
+            'Choose a saved grain revision.'),))
+    try:
+        result = convert_fermentable(Mass(source.quantity, source.unit), source_yield,
+                                     target_yield, target_unit)
+    except (TypeError, ValueError) as error:
+        if hasattr(error, 'path'):
+            path = error.path
+        else:
+            path = 'calculation'
+        raise InvalidConversionProposal((PlanIssue('invalid_calculation', path,
+            'Provide valid explicit yields, recovery, units, and comparison point.'),)) from None
+    with localcontext() as context:
+        context.prec = 80
+        try:
+            weighing_amount = (Decimal(result.amount.numerator) / Decimal(result.amount.denominator)).quantize(Decimal('0.001'))
+        except InvalidOperation:
+            raise InvalidConversionProposal((PlanIssue('unsupported_amount', 'result.amount',
+                'The converted amount exceeds the supported weighing range.'),)) from None
+    if not weighing_amount.is_finite() or weighing_amount <= 0:
+        raise InvalidConversionProposal((PlanIssue('invalid_weighing_amount', 'result.amount',
+            'The converted amount is below the supported display precision.'),))
+    weighing_note = (f'Display amount rounded to 0.001 {target_unit}; scheduled portions scaled to 12 decimal places; '
+                     'verify your scale can measure the displayed amount.')
+    target_ingredient_id = f'conversion-target-{proposal_id}'
+    replacement = Ingredient(target_ingredient_id, source.version_id, weighing_amount, target_unit,
+                              target.name, 'grain')
+    ingredients = tuple(replacement if item.id == source.id else item for item in original.draft.plan.ingredients)
+    additions = []
+    for index, addition in enumerate(original.draft.plan.additions):
+        if addition.ingredient_id != source.id:
+            additions.append(addition)
+            continue
+        if addition.quantity is None:
+            if addition.unit is not None and addition.unit != source.unit:
+                raise InvalidConversionProposal((PlanIssue('portion_unit_mismatch',
+                    f'original.plan.additions[{index}].unit', 'Review the existing scheduled portion unit before converting.'),))
+            additions.append(Addition(addition.version_id, addition.step_id, target_ingredient_id,
+                                      None, target_unit if addition.unit is not None else None))
+            continue
+        if addition.unit != source.unit:
+            raise InvalidConversionProposal((PlanIssue('portion_unit_mismatch',
+                f'original.plan.additions[{index}].unit', 'Review the existing scheduled portion unit before converting.'),))
+        try:
+            portion = Fraction(addition.quantity) * Fraction(weighing_amount) / Fraction(source.quantity)
+            with localcontext() as context:
+                context.prec = 80
+                amount = (Decimal(portion.numerator) / Decimal(portion.denominator)).quantize(Decimal('0.000000000001'))
+        except Exception:
+            raise InvalidConversionProposal((PlanIssue('invalid_portion', f'original.plan.additions[{index}]',
+                'The scheduled portion cannot be represented within the supported precision.'),)) from None
+        additions.append(Addition(addition.version_id, addition.step_id, target_ingredient_id, amount, target_unit))
+    proposed = replace(original.draft, plan=replace(original.draft.plan,
+        ingredients=ingredients, additions=tuple(additions)))
+    catalogue = (target,)
+    conversion = IngredientConversion(source.id, target_ingredient_id, target.revision_id, result,
+        source_potential_override=f'Explicit source assumption: {source_yield.provenance}',
+        target_potential_override=(f'Explicit target assumption: {target_yield.provenance}'
+            if target.potential_ppg != target_yield.potential_ppg else None),
+        weighing_note=weighing_note.strip())
+    value = ConversionProposal(proposal_id, created_at, original, proposed, catalogue, (conversion,))
+    return capture_proposal(value)
 
 
 def _text(value, optional=False):

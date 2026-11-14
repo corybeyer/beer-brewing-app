@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "proposal_id": {
+      "title": "Proposal Id",
+      "type": "string"
+    },
+    "source_ingredient_id": {
+      "title": "Source Ingredient Id",
+      "type": "string"
+    },
+    "target_ingredient_id": {
+      "title": "Target Ingredient Id",
+      "type": "string"
+    },
+    "target_name": {
+      "title": "Target Name",
+      "type": "string"
+    },
+    "target_unit": {
+      "title": "Target Unit",
+      "type": "string"
+    },
+    "target_amount": {
+      "title": "Target Amount",
+      "type": "string"
+    },
+    "exact_amount_numerator": {
+      "title": "Exact Amount Numerator",
+      "type": "string"
+    },
+    "exact_amount_denominator": {
+      "title": "Exact Amount Denominator",
+      "type": "string"
+    },
+    "gravity_points_numerator": {
+      "title": "Gravity Points Numerator",
+      "type": "string"
+    },
+    "gravity_points_denominator": {
+      "title": "Gravity Points Denominator",
+      "type": "string"
+    },
+    "comparison_point": {
+      "title": "Comparison Point",
+      "type": "string"
+    },
+    "weighing_note": {
+      "title": "Weighing Note",
+      "type": "string"
+    }
+  },
+  "required": [
+    "proposal_id",
+    "source_ingredient_id",
+    "target_ingredient_id",
+    "target_name",
+    "target_unit",
+    "target_amount",
+    "exact_amount_numerator",
+    "exact_amount_denominator",
+    "gravity_points_numerator",
+    "gravity_points_denominator",
+    "comparison_point",
+    "weighing_note"
+  ],
+  "title": "ConversionResponseV1",
+  "type": "object"
+}

@@ -1,6 +1,12 @@
 # Current development status
 
-As of November 9, 2026 (America/Chicago). This is a development snapshot, not a live production health report.
+As of November 13, 2026 (America/Chicago). This is a development snapshot, not a live production health report.
+
+## Current work: C4 one-grain conversion picker and Apply
+
+The current branch adds the recipe-local grain catalogue endpoint, immutable one-to-one conversion previews, and revision-checked atomic Apply through schema `0004_conversion_proposals`. The UI requires explicit source/target potential and recovery provenance plus a shared comparison point, shows the exact result with a separately rounded weighing amount, and waits for a distinct Apply click. Empty catalogue data is shown without synthetic choices. Source recipes, unrelated ingredients, step records, and addition order remain retained; linked additions are remapped with the replacement.
+
+This is a focused C4 slice for M2/UI-04/UI-05 and M6, AC-11/AC-13, and CV-08/CV-09. It does not implement C3 match ranking in the picker, flavor variations, blends, mash-step adaptation, publication, or equipment control. Schema `0004` already exists, so no migration is added. Domain tests, PostgreSQL Apply/replay tests, API contract schemas, an HTTP preview/Apply integration test, and desktop/tablet/phone browser coverage have been added. Run the source-bound pre-PR report before creating a PR; independent CI/review and the existing deployment-operation review remain required. No PR or production deployment is claimed.
 
 ## Active repository
 
