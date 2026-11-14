@@ -15,7 +15,10 @@ from brewery_domain.recipe_plan import PlanIssue
 
 from .catalogue import _read_revision
 from .proposal_document import decode_proposal, encode_proposal
-from .recipes import _stored, _version
+from .recipes import (
+    DraftConflict, DraftNotFound, InvalidDraft, _addition, _dependency, _ingredient, _step,
+    _stored, _validate, _version, _write_plan,
+)
 
 
 _metadata = sa.MetaData()
@@ -30,7 +33,8 @@ def _available(operation):
     def wrapped(*args, **options):
         try:
             return operation(*args, **options)
-        except (InvalidConversionProposal, StaleConversionProposal, ConversionProposalConflict):
+        except (InvalidConversionProposal, StaleConversionProposal, ConversionProposalConflict,
+                DraftConflict, DraftNotFound, InvalidDraft):
             raise
         except (SQLAlchemyError, CatalogUnavailable, ValueError, TypeError, KeyError, OverflowError, RecursionError):
             raise ConversionProposalUnavailable('Conversion proposal storage is unavailable.') from None
@@ -87,3 +91,41 @@ class PostgresConversionProposalStore:
             except (InvalidConversionProposal, ValueError, TypeError, KeyError, OverflowError, RecursionError):
                 raise ConversionProposalUnavailable('Stored conversion proposal failed validation.') from None
             return value
+
+    @_available
+    def apply(self, proposal_id: str, expected_revision: int):
+        """Apply once under the same parent lock used by every recipe writer."""
+        if type(expected_revision) is not int or expected_revision < 1:
+            raise ValueError('Expected edit revision must be positive.')
+        with self.engine.begin() as connection:
+            row = connection.execute(sa.select(_version).where(_version.c.id ==
+                sa.select(_proposal.c.version_id).where(_proposal.c.id == proposal_id).scalar_subquery())
+                .with_for_update()).mappings().one_or_none()
+            if row is None:
+                raise DraftNotFound('The proposal or its recipe draft does not exist.')
+            if row['status'] != 'draft' or row['edit_revision'] != expected_revision:
+                raise DraftConflict('The draft changed; review the latest saved version before applying.')
+            current = _stored(connection, row)
+            retained = connection.execute(sa.select(_proposal).where(
+                _proposal.c.id == proposal_id, _proposal.c.version_id == row['id'])).mappings().one_or_none()
+            if retained is None:
+                raise DraftNotFound('The proposal does not exist for this recipe draft.')
+            try:
+                proposal = decode_proposal(retained['document'])
+                require_current_proposal(proposal, current)
+                if (proposal.id != retained['id'] or proposal.original.edit_revision != retained['original_edit_revision']
+                        or proposal.created_at != retained['created_at'] or proposal.format_version != retained['format_version']):
+                    raise ValueError('Stored proposal headers differ from their snapshot.')
+            except StaleConversionProposal:
+                raise DraftConflict('The original draft changed; review the latest version before applying.') from None
+            except (InvalidConversionProposal, ValueError, TypeError, KeyError, OverflowError, RecursionError):
+                raise ConversionProposalUnavailable('Stored conversion proposal failed validation.') from None
+            _validate(proposal.proposed)
+            updated = connection.execute(_version.update().where(_version.c.id == row['id']).values(
+                name=proposal.proposed.name, description=proposal.proposed.description,
+                edit_revision=expected_revision + 1, updated_at=sa.func.clock_timestamp(),
+            ).returning(_version)).mappings().one()
+            for table in (_addition, _dependency, _step, _ingredient):
+                connection.execute(table.delete().where(table.c.version_id == row['id']))
+            _write_plan(connection, proposal.proposed.plan)
+            return _stored(connection, updated)

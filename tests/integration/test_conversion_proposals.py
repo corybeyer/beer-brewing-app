@@ -15,6 +15,7 @@ from brewery_domain.conversion_proposals import (
     ConversionProposalConflict, ConversionProposalUnavailable, InvalidConversionProposal,
     StaleConversionProposal,
 )
+from brewery_domain.recipes import DraftConflict
 from tests.fixtures.postgres_support import PostgreSQLTestCase
 from tests.fixtures.proposal_support import proposal, seed_proposal
 
@@ -53,6 +54,18 @@ class ConversionProposalStorageTests(PostgreSQLTestCase):
             connection.execute(text("UPDATE fermentable_revision SET name='Changed catalogue'"))
         self.assertEqual(self.store.load(value.id), value)
         self.assertEqual(self.recipes.load('v1').edit_revision, 2)
+
+    def test_apply_replaces_plan_atomically_and_rejects_a_second_apply(self):
+        value = seed_proposal(self.engine)
+        self.store.append(value)
+        applied = self.store.apply(value.id, value.original.edit_revision)
+        self.assertEqual(applied.edit_revision, value.original.edit_revision + 1)
+        self.assertEqual(applied.draft.plan.ingredients, value.proposed.plan.ingredients)
+        self.assertEqual(applied.draft.plan.additions, value.proposed.plan.additions)
+        self.assertEqual(applied.draft.name, value.original.draft.name)
+        with self.assertRaises(DraftConflict):
+            self.store.apply(value.id, applied.edit_revision)
+        self.assertEqual(self.recipes.load(value.original.draft.plan.version_id), applied)
 
     def test_stale_missing_and_same_revision_different_content_save_nothing(self):
         value = proposal()

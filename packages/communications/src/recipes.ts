@@ -102,3 +102,46 @@ export async function saveIngredients(current: IngredientList, ingredients: Reci
   if (saved.edit_revision !== current.edit_revision + 1) throw new RecipeRequestError('invalid_response', 'The ingredient save could not be verified. Review the saved list before retrying.');
   return saved;
 }
+
+export interface GrainProfile {
+  revision_id: string; name: string; manufacturer: string | null; potential_ppg: string | null;
+  potential_status: string; potential_note: string | null; source_url: string | null; flavor_notes: string | null;
+  flavor_tags: string[]; source_label: string; source_retrieved_at: string;
+}
+export interface ConversionPreview {
+  proposal_id: string; source_ingredient_id: string; target_ingredient_id: string; target_name: string;
+  target_unit: string; target_amount: string; exact_amount_numerator: string; exact_amount_denominator: string;
+  gravity_points_numerator: string; gravity_points_denominator: string; comparison_point: string; weighing_note: string;
+}
+function parseConversion(value: unknown): ConversionPreview {
+  const fields = ['proposal_id', 'source_ingredient_id', 'target_ingredient_id', 'target_name', 'target_unit',
+    'target_amount', 'exact_amount_numerator', 'exact_amount_denominator', 'gravity_points_numerator',
+    'gravity_points_denominator', 'comparison_point', 'weighing_note'] as const;
+  if (!object(value) || fields.some((key) => typeof value[key] !== 'string' || !value[key])) {
+    throw new RecipeRequestError('invalid_response', 'The conversion preview could not be verified. Please retry.');
+  }
+  return value as unknown as ConversionPreview;
+}
+export async function listGrainProfiles(signal: AbortSignal): Promise<GrainProfile[]> {
+  const value = await request(`${endpoint}/catalogue/grains`, signal);
+  if (!Array.isArray(value) || value.length > 1000 || !value.every((profile) => object(profile) &&
+      typeof profile.revision_id === 'string' && typeof profile.name === 'string' &&
+      nullableText(profile.manufacturer) && nullableText(profile.potential_ppg) &&
+      typeof profile.potential_status === 'string' && nullableText(profile.potential_note) &&
+      nullableText(profile.source_url) &&
+      nullableText(profile.flavor_notes) && Array.isArray(profile.flavor_tags) &&
+      profile.flavor_tags.every((tag) => typeof tag === 'string') && typeof profile.source_label === 'string' &&
+      typeof profile.source_retrieved_at === 'string')) {
+    throw new RecipeRequestError('invalid_response', 'The grain catalogue could not be read. Please retry.');
+  }
+  return value as GrainProfile[];
+}
+export async function createConversionPreview(versionId: string, input: Record<string, string | number | null>, signal: AbortSignal): Promise<ConversionPreview> {
+  return parseConversion(await request(`${endpoint}/${encodeURIComponent(versionId)}/conversion-proposals`, signal, 'POST', input));
+}
+export async function loadConversionPreview(versionId: string, proposalId: string, signal: AbortSignal): Promise<ConversionPreview> {
+  return parseConversion(await request(`${endpoint}/${encodeURIComponent(versionId)}/conversion-proposals/${encodeURIComponent(proposalId)}`, signal));
+}
+export async function applyConversion(versionId: string, proposalId: string, expectedRevision: number, signal: AbortSignal): Promise<RecipeOverview> {
+  return parseOverview(await request(`${endpoint}/${encodeURIComponent(versionId)}/conversion-proposals/${encodeURIComponent(proposalId)}/apply`, signal, 'POST', { expected_revision: expectedRevision }));
+}

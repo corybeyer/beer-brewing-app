@@ -94,6 +94,16 @@ class PostgresFermentableCatalog:
         with self.engine.connect() as connection:
             return _read_revision(connection, revision_id)
 
+    @_available
+    def list_grains(self, limit: int = 1000) -> tuple[CatalogRevision, ...]:
+        if type(limit) is not int or not 1 <= limit <= 1000:
+            raise ValueError('Catalogue page is outside its supported bounds.')
+        with self.engine.connect() as connection:
+            rows = connection.execute(sa.select(_revision.c.id).where(_revision.c.kind == 'grain')
+                                      .order_by(_revision.c.name, _revision.c.id).limit(limit)).scalars()
+            return tuple(value for revision_id in rows
+                         if (value := _read_revision(connection, revision_id)) is not None)
+
 
 def _read_revision(connection, revision_id):
     row = connection.execute(sa.select(_revision).where(_revision.c.id == revision_id)).mappings().one_or_none()

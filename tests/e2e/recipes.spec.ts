@@ -42,6 +42,7 @@ async function server(page: Page, loseFirstCreate = false) {
     const draft = drafts.get(decodeURIComponent(url.pathname.split('/').at(-1)!));
     return route.fulfill({ status: draft ? 200 : 404, json: draft ?? failure('not_found', 'This draft could not be found.') });
   });
+  await page.route('**/api/v1/recipe-drafts/catalogue/grains', (route) => route.fulfill({ json: [] }));
   return { drafts, ingredients, keys, revisions };
 }
 
@@ -64,6 +65,58 @@ test('create, save, reload, and reopen a recipe overview accessibly', async ({ p
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath('recipe-editor.png'), fullPage: true });
+});
+
+test('grain conversion requires explicit assumptions and a separate accessible Apply action', async ({ page }) => {
+  const api = await server(page);
+  const draft: RecipeOverview = { recipe_id: 'recipe-conversion', version_id: 'draft-conversion', version_number: 1,
+    name: 'Conversion test', description: null, edit_revision: 1, status: 'draft' };
+  api.drafts.set(draft.version_id, draft);
+  api.ingredients.set(draft.version_id, [{ id: 'manual-extract', name: 'Manual extract', category: 'other', quantity: '3', unit: 'lb' }]);
+  const profile = { revision_id: 'grain-r1', name: 'Synthetic pale malt', manufacturer: 'Test source',
+    potential_ppg: '37', potential_status: 'manufacturer', potential_note: null, flavor_notes: 'Malty',
+    source_url: null, flavor_tags: ['malty'], source_label: 'Synthetic test data', source_retrieved_at: '2026-11-08T00:00:00+00:00' };
+  const preview = { proposal_id: 'proposal-browser', source_ingredient_id: 'manual-extract', target_ingredient_id: 'converted-grain',
+    target_name: 'Synthetic pale malt', target_unit: 'lb', target_amount: '4.865',
+    exact_amount_numerator: '180', exact_amount_denominator: '37', gravity_points_numerator: '135',
+    gravity_points_denominator: '1', comparison_point: 'kettle',
+    weighing_note: 'Display amount rounded to 0.001 lb; verify your scale can measure it.' };
+  let stored = false;
+  await page.route('**/api/v1/recipe-drafts/catalogue/grains', (route) => route.fulfill({ json: [profile] }));
+  await page.route('**/api/v1/recipe-drafts/*/conversion-proposals', async (route) => {
+    stored = true; return route.abort('failed');
+  });
+  await page.route('**/api/v1/recipe-drafts/*/conversion-proposals/*', (route) => {
+    if (route.request().method() === 'GET' && stored) return route.fulfill({ json: preview });
+    return route.fallback();
+  });
+  await page.route('**/api/v1/recipe-drafts/*/conversion-proposals/*/apply', async (route) => {
+    api.ingredients.set(draft.version_id, [{ id: 'converted-grain', name: 'Synthetic pale malt', category: 'grain', quantity: '4.865', unit: 'lb' }]);
+    const saved = { ...draft, edit_revision: 2 }; api.drafts.set(draft.version_id, saved);
+    return route.fulfill({ json: saved });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Open Conversion test', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Explore a grain conversion', exact: true })).toBeVisible();
+  await page.getByRole('textbox', { name: 'Source potential (PPG)' }).fill('45');
+  await page.getByRole('textbox', { name: 'Source recovery fraction' }).fill('1');
+  await page.getByRole('textbox', { name: 'Source potential provenance' }).fill('Explicit extract assumption');
+  await page.getByRole('textbox', { name: 'Target recovery fraction' }).fill('0.75');
+  await page.getByRole('textbox', { name: 'Target recovery provenance' }).fill('Explicit mash recovery');
+  await page.getByRole('combobox', { name: 'Comparison point' }).selectOption('kettle');
+  await page.getByRole('combobox', { name: 'Weighing unit' }).selectOption('lb');
+  await page.getByRole('button', { name: 'Create conversion preview', exact: true }).click();
+  await expect(page.getByText('The saved preview was recovered after the request response was interrupted.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Conversion preview' })).toContainText('4.865 lb');
+  await expect(page.getByRole('button', { name: 'Apply this conversion', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Apply this conversion', exact: true }).click();
+  await expect(page.getByText('Conversion applied. Review the updated ingredient list.', { exact: true })).toBeVisible();
+  const updatedIngredient = page.getByRole('region', { name: 'Ingredient 1', exact: true });
+  await expect(updatedIngredient.getByRole('textbox', { name: 'Ingredient 1 name' })).toHaveValue('Synthetic pale malt');
+  await expect(updatedIngredient.getByRole('textbox', { name: 'Ingredient 1 quantity' })).toHaveValue('4.865');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
 });
 
 test('lost creation response survives refresh and reuses a UUID without randomUUID', async ({ page }) => {

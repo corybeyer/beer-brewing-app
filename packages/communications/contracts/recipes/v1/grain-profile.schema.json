@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "revision_id": {
+      "title": "Revision Id",
+      "type": "string"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "manufacturer": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Manufacturer"
+    },
+    "potential_ppg": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Potential Ppg"
+    },
+    "potential_status": {
+      "title": "Potential Status",
+      "type": "string"
+    },
+    "potential_note": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Potential Note"
+    },
+    "source_url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Source Url"
+    },
+    "flavor_notes": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Flavor Notes"
+    },
+    "flavor_tags": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Flavor Tags",
+      "type": "array"
+    },
+    "source_label": {
+      "title": "Source Label",
+      "type": "string"
+    },
+    "source_retrieved_at": {
+      "title": "Source Retrieved At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "revision_id",
+    "name",
+    "manufacturer",
+    "potential_ppg",
+    "potential_status",
+    "potential_note",
+    "source_url",
+    "flavor_notes",
+    "flavor_tags",
+    "source_label",
+    "source_retrieved_at"
+  ],
+  "title": "GrainProfileV1",
+  "type": "object"
+}

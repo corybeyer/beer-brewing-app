@@ -1,4 +1,4 @@
-# Recipe overview HTTP contract v1
+# Recipe and conversion HTTP contract v1
 
 M2/UI-04/UI-05 under [proposed ADR-0011](../../../../../docs/architecture/decisions/0011-manual-recipe-overview.md). All recipe resources are drafts; this interface does not publish, start a batch, expose the full plan, or change ingredients/steps. Generated model schemas in this directory are tested against the implemented transport models. OpenAPI is served at `/api/v1/openapi.json`.
 
@@ -30,3 +30,16 @@ Each row has a stable id plus required nullable name, category, quantity, and un
 Categories and units follow the [draft catalogue](../../../../../docs/requirements/recipe-plan-validation.md). No automatic conversions occur. The selected path supplies version ownership; extra per-row version_id fields are rejected. IDs need only be unique within a version. Keep IDs when editing so existing addition references remain valid. Removing a referenced ingredient, reducing an amount below allocated portions, or changing to a mismatched addition unit fails with field-specific issues and saves nothing. Metadata, steps, dependencies, and additions remain intact.
 
 The edit revision is shared with overview and all future plan writes. A stale overview or ingredient save returns 409, even when the other writer edited a different section. The UI retains rows on failure and requires explicit review of the latest saved ingredients before retrying a conflict. An ingredient save cannot silently advance a stale overview's revision; only a save from the exact current overview revision can advance its revision locally.
+
+## Grain conversion preview and Apply
+
+The same interface supports the one-to-one C1 conversion slice described in [extract conversion](../../../../../docs/plan/extract-conversion.md) and [proposal snapshots](../../../../../docs/requirements/conversion-proposal-snapshots.md). All endpoints inherit the local host/origin boundary, `no-store` responses, 32 KiB body cap, and error codes above.
+
+| Method and path | Request / response |
+| --- | --- |
+| GET `/api/v1/recipe-drafts/catalogue/grains` | Ordered list of immutable grain revisions with source label/date, potential status, and flavor notes. An empty list means no profiles are available. |
+| POST `/api/v1/recipe-drafts/{version_id}/conversion-proposals` | `create-conversion.schema.json`; expected_revision plus source/target IDs and explicit potential/recovery/provenance/comparison point. Stores an immutable preview and returns `conversion-preview.schema.json` with exact rational result and rounded display amount. |
+| GET `/api/v1/recipe-drafts/{version_id}/conversion-proposals/{proposal_id}` | Reloads a retained preview after an uncertain browser request; the proposal must belong to this version. |
+| POST `/api/v1/recipe-drafts/{version_id}/conversion-proposals/{proposal_id}/apply` | `apply-conversion.schema.json`; rechecks the original revision and atomically replaces the complete validated plan. Returns the incremented overview. A second or stale Apply returns 409. |
+
+The target mass display is rounded to 0.001 of the chosen unit; the exact rational amount remains in the retained proposal. The response asks the brewer to verify scale precision. Apply is a distinct user action. This estimates equal gravity contribution at the selected comparison point; it does not establish equal flavor, mash feasibility, or recipe readiness. Blend proposals and mash-step adaptation are outside this snapshot format.
