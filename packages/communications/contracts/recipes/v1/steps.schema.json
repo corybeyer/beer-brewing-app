@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "StepV1": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Title"
+        },
+        "instructions": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Instructions"
+        },
+        "dependencies": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Dependencies",
+          "type": "array"
+        },
+        "anchor_step_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Anchor Step Id"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "instructions",
+        "dependencies",
+        "anchor_step_id"
+      ],
+      "title": "StepV1",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "version_id": {
+      "title": "Version Id",
+      "type": "string"
+    },
+    "edit_revision": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Edit Revision",
+      "type": "integer"
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/StepV1"
+      },
+      "title": "Steps",
+      "type": "array"
+    },
+    "linked_addition_step_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Linked Addition Step Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "version_id",
+    "edit_revision",
+    "steps",
+    "linked_addition_step_ids"
+  ],
+  "title": "StepsV1",
+  "type": "object"
+}

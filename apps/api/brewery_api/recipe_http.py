@@ -23,6 +23,7 @@ from brewery_domain.conversion_proposals import (
 from brewery_domain.extract_conversion import FermentableYield
 from brewery_domain.fermentable_catalogue import CatalogUnavailable
 from brewery_domain.recipe_plan import Ingredient, PlanIssue
+from brewery_domain.recipe_plan import Ingredient, PlanIssue, Step
 from brewery_domain.recipes import DraftConflict, DraftNotFound, InvalidDraft, RecipeDraftService, RecipeOverview, RecipeStorageUnavailable
 
 
@@ -30,6 +31,7 @@ PREFIX = '/api/v1/recipe-drafts'
 MAX_BODY_BYTES = 32768
 # 100 rows, including fully JSON-escaped non-BMP IDs/names at field limits.
 MAX_INGREDIENT_BODY_BYTES = 512 * 1024
+MAX_STEP_BODY_BYTES = 2 * 1024 * 1024
 
 
 class StrictModel(BaseModel):
@@ -137,6 +139,26 @@ class ConversionResponseV1(StrictModel):
     weighing_note: str
 
 
+class StepV1(StrictModel):
+    id: Annotated[StrictStr, Field(min_length=1, max_length=128)]
+    title: Annotated[StrictStr, Field(max_length=200)] | None
+    instructions: Annotated[StrictStr, Field(max_length=2000)] | None
+    dependencies: Annotated[list[Annotated[StrictStr, Field(min_length=1, max_length=128)]], Field(max_length=100)]
+    anchor_step_id: Annotated[StrictStr, Field(min_length=1, max_length=128)] | None
+
+
+class UpdateStepsV1(StrictModel):
+    expected_revision: Annotated[StrictInt, Field(ge=1, le=9007199254740991)]
+    steps: Annotated[list[StepV1], Field(max_length=100)]
+
+
+class StepsV1(StrictModel):
+    version_id: str
+    edit_revision: Annotated[int, Field(ge=1, le=9007199254740991)]
+    steps: list[StepV1]
+    linked_addition_step_ids: list[str]
+
+
 class FieldIssueV1(StrictModel):
     path: str
     code: str
@@ -203,7 +225,8 @@ class RecipeRequestBoundary:
             return await reject(403, 'forbidden', 'Open the companion using its local hostname or address.')
 
         if scope['method'] in ('POST', 'PATCH'):
-            body_limit = MAX_INGREDIENT_BODY_BYTES if path.endswith('/ingredients') else MAX_BODY_BYTES
+            body_limit = (MAX_INGREDIENT_BODY_BYTES if path.endswith('/ingredients') else
+                          MAX_STEP_BODY_BYTES if path.endswith('/steps') else MAX_BODY_BYTES)
             if headers.get('content-type', '').split(';')[0].lower() != 'application/json':
                 return await reject(415, 'unsupported_media_type', 'Recipe changes require JSON.')
             try:
@@ -280,6 +303,13 @@ def install_recipe_routes(application):
             source_url=profile.source_url,
             flavor_notes=profile.flavor_notes, flavor_tags=list(profile.flavor_tags), source_label=profile.source_label,
             source_retrieved_at=profile.source_retrieved_at.isoformat())
+
+    def step_result(stored):
+        return StepsV1(version_id=stored.draft.plan.version_id, edit_revision=stored.edit_revision,
+            steps=[StepV1(id=item.id, title=item.title, instructions=item.instructions,
+                dependencies=list(item.dependencies), anchor_step_id=item.anchor_step_id)
+                for item in stored.draft.plan.steps],
+            linked_addition_step_ids=sorted({item.step_id for item in stored.draft.plan.additions}))
 
     @router.get('', response_model=DraftPageV1)
     def list_drafts(request: Request, limit: Annotated[int, Query(ge=1, le=100)] = 50,
@@ -368,6 +398,15 @@ def install_recipe_routes(application):
         draft = applied.draft
         return result(RecipeOverview(draft.recipe_id, draft.plan.version_id, draft.version_number,
                                      draft.name, draft.description, applied.edit_revision))
+    @router.get('/{version_id}/steps', response_model=StepsV1)
+    def load_steps(version_id: Annotated[str, Path(min_length=1, max_length=128)], request: Request):
+        return step_result(service(request).load_steps(version_id))
+
+    @router.patch('/{version_id}/steps', response_model=StepsV1)
+    def update_steps(version_id: Annotated[str, Path(min_length=1, max_length=128)], payload: UpdateStepsV1, request: Request):
+        steps = tuple(Step(item.id, version_id, tuple(item.dependencies), item.anchor_step_id,
+                           item.title, item.instructions) for item in payload.steps)
+        return step_result(service(request).update_steps(version_id, payload.expected_revision, steps))
 
     @application.exception_handler(DraftNotFound)
     async def not_found(request, error):
