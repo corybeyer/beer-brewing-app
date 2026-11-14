@@ -36,6 +36,8 @@ Checks: refresh during a hold without resetting time; recover after service rest
 
 Checks: reject cycles and cross-version links without partial saves; keep references valid after reordering; show all steps at narrow widths; preserve a published version when editing through a new draft.
 
+Current local slice: edit ordered step title/instructions, dependency links, and timing anchors in a draft; move rows with keyboard-accessible buttons while retaining stable IDs. It does not yet model duration, offset, action type, vessel role, targets, confirmation requirement, publication, or batch start.
+
 ## UI-03: Batch review and tastings
 
 - Offer Overview, Brew log, and Tastings views. Compare matching planned/actual gravity and volume purposes; absent actuals stay absent.

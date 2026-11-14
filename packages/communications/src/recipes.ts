@@ -145,3 +145,36 @@ export async function loadConversionPreview(versionId: string, proposalId: strin
 export async function applyConversion(versionId: string, proposalId: string, expectedRevision: number, signal: AbortSignal): Promise<RecipeOverview> {
   return parseOverview(await request(`${endpoint}/${encodeURIComponent(versionId)}/conversion-proposals/${encodeURIComponent(proposalId)}/apply`, signal, 'POST', { expected_revision: expectedRevision }));
 }
+
+export interface RecipeStep { id: string; title: string | null; instructions: string | null;
+  dependencies: string[]; anchor_step_id: string | null }
+export interface StepList { version_id: string; edit_revision: number; steps: RecipeStep[]; linked_addition_step_ids: string[] }
+function parseSteps(value: unknown, versionId: string): StepList {
+  if (!object(value) || value.version_id !== versionId || !positiveInteger(value.edit_revision) ||
+      !Array.isArray(value.steps) || !Array.isArray(value.linked_addition_step_ids)) {
+    throw new RecipeRequestError('invalid_response', 'The recipe steps could not be read. Please retry.');
+  }
+  const steps = value.steps;
+  const linked = value.linked_addition_step_ids;
+  if (!linked.every((id) => typeof id === 'string' && id.length > 0) ||
+      !steps.every((step) => object(step) && typeof step.id === 'string' && step.id.length > 0 &&
+        nullableText(step.title) && nullableText(step.instructions) && nullableText(step.anchor_step_id) &&
+        Array.isArray(step.dependencies) && step.dependencies.every((id) => typeof id === 'string' && id.length > 0) &&
+        new Set(step.dependencies).size === step.dependencies.length) ||
+      new Set(steps.map((step) => (step as RecipeStep).id)).size !== steps.length ||
+      new Set(linked).size !== linked.length ||
+      linked.some((id) => !steps.some((step) => object(step) && step.id === id))) {
+    throw new RecipeRequestError('invalid_response', 'The recipe steps could not be read. Please retry.');
+  }
+  return value as unknown as StepList;
+}
+export async function loadSteps(versionId: string, signal: AbortSignal): Promise<StepList> {
+  return parseSteps(await request(`${endpoint}/${encodeURIComponent(versionId)}/steps`, signal), versionId);
+}
+export async function saveSteps(current: StepList, steps: RecipeStep[], signal: AbortSignal): Promise<StepList> {
+  const saved = parseSteps(await request(`${endpoint}/${encodeURIComponent(current.version_id)}/steps`, signal, 'PATCH', {
+    expected_revision: current.edit_revision, steps,
+  }), current.version_id);
+  if (saved.edit_revision !== current.edit_revision + 1) throw new RecipeRequestError('invalid_response', 'The step save could not be verified. Review the latest saved steps before retrying.');
+  return saved;
+}
