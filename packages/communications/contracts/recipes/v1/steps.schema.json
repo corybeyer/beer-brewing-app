@@ -67,6 +67,111 @@
       ],
       "title": "StepV1",
       "type": "object"
+    },
+    "StoredIngredientV1": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Name"
+        },
+        "category": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Category"
+        },
+        "quantity": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Quantity"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Unit"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "category",
+        "quantity",
+        "unit"
+      ],
+      "title": "StoredIngredientV1",
+      "type": "object"
+    },
+    "StoredStepAdditionV1": {
+      "additionalProperties": false,
+      "properties": {
+        "step_id": {
+          "title": "Step Id",
+          "type": "string"
+        },
+        "ingredient_id": {
+          "title": "Ingredient Id",
+          "type": "string"
+        },
+        "quantity": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Quantity"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Unit"
+        }
+      },
+      "required": [
+        "step_id",
+        "ingredient_id",
+        "quantity",
+        "unit"
+      ],
+      "title": "StoredStepAdditionV1",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -94,13 +199,29 @@
       },
       "title": "Linked Addition Step Ids",
       "type": "array"
+    },
+    "ingredients": {
+      "items": {
+        "$ref": "#/$defs/StoredIngredientV1"
+      },
+      "title": "Ingredients",
+      "type": "array"
+    },
+    "additions": {
+      "items": {
+        "$ref": "#/$defs/StoredStepAdditionV1"
+      },
+      "title": "Additions",
+      "type": "array"
     }
   },
   "required": [
     "version_id",
     "edit_revision",
     "steps",
-    "linked_addition_step_ids"
+    "linked_addition_step_ids",
+    "ingredients",
+    "additions"
   ],
   "title": "StepsV1",
   "type": "object"

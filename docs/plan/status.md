@@ -1,35 +1,34 @@
 # Current development status
 
-As of November 14, 2026 (America/Chicago). This is a development snapshot, not a live production health report.
+As of November 27, 2026 (America/Chicago). This is a development snapshot, not a live production health report.
 
-## Current work: M2 recipe details and volume targets
+## Current work: M2 ingredient portions on recipe steps
+
+The step editor now assigns saved ingredients and exact portion amounts to steps, including splitting an ingredient across steps, reordering linked steps, and removing portions. The step API saves portions and step edits together under the shared draft revision. It uses the existing recipe addition table and exact allocation rules. See the [portion rules](../requirements/recipe-plan-validation.md#ingredient-portions-on-steps) and [v1 contract](../../packages/communications/contracts/recipes/v1/README.md#manual-step-editing) for M2/UI-02/UI-04 and AC-01/AC-02.
+
+## Previous slice: M2 recipe details and volume targets
 
 PR #22 merged recipe step editing at main commit `74488568d5c8dc6e0040f20d9e1d709d1f00d1ee`; its PR CI #48 passed all eight jobs. The versioned step API preserves stable dependency/anchor/addition links across reorder and uses the shared edit revision. The UI edits titles, instructions, dependencies, and timing anchors with keyboard-accessible move controls. It does not add durations, offsets, vessel roles, action types, publication, or batch timers.
 
-The current development slice adds optional recipe source text, ordered descriptive tags, and explicit fermenter/kettle/packaged volume targets, stored under new migration `0005_recipe_details`. It shares the recipe version edit revision. It does not implement gravity targets, BJCP style/classification, searchable tags, publication, or version creation; D-03 semantics remain unresolved. See the [details contract](../../packages/communications/contracts/recipes/v1/README.md#recipe-source-tags-and-volume-targets), [draft storage](../architecture/recipe-draft-storage.md), and M2/UI-04/UI-05, AC-01/AC-03 scope.
+Recipe details add optional source text, ordered descriptive tags, and fermenter, kettle, and packaged volume targets under migration `0005_recipe_details`. The fields use the shared draft revision. See the [details contract](../../packages/communications/contracts/recipes/v1/README.md#recipe-source-tags-and-volume-targets), [draft storage](../architecture/recipe-draft-storage.md), and M2/UI-04/UI-05, AC-01/AC-03 scope.
 
-PR #23, [Add recipe source, tags, and volume targets](https://github.com/corybeyer/beer-brewing-app/pull/23), is open as a draft. It implements the slice described above. Its PR CI #50 and #51 both failed in the production rollout scenario after a deliberately failed `0005_recipe_details` upgrade: deployment correctly retained the legacy smoke app, but the test incorrectly required the UI/API readiness endpoint. CI #50 also exposed two stale PostgreSQL test expectations; those were corrected, and the backend/PostgreSQL job passed in #51. The rollout check now asserts that retained smoke serves `/health` and returns 404 for application routes. CI #52 passed all eight jobs at commit `7c3098cc78d4d88dc003742d075db9d733a44f65`, including the PostgreSQL backend and production rollout/verified-restore checks.
+PR #23 merged at `0efb0ec617360fd33ce79c7985262a32ad874803` after the brewer reported successful completion of the Pi operations update. The final PR CI #53 and main CI #54 passed, including PostgreSQL and production rollout/verified restore. The rollout check asserts that retained smoke serves `/health` and returns 404 for application routes after a deliberately failed details upgrade. [PR #23](https://github.com/corybeyer/beer-brewing-app/pull/23), [final PR CI](https://github.com/corybeyer/beer-brewing-app/actions/runs/46062234867), [main CI](https://github.com/corybeyer/beer-brewing-app/actions/runs/46065111689)
 
-The source-bound local pre-PR check passed on November 14, 2026: repository policy (250 source files, zero findings), 8 validator fixtures, 193 Python tests, frontend production build, and 87 browser/accessibility checks across desktop, tablet, and phone. Twelve PostgreSQL integration groups were skipped locally because `TEST_DATABASE_URL` is unset; CI #52 supplies the independent PostgreSQL coverage. The report was verified against the exact local source and commit. The local Docker rollout could not be run because access to `/var/run/docker.sock` is denied; CI #52 passed the rollout and verified-restore job. No `0005_recipe_details` production migration or deployment is claimed.
+Publication and deployment of that commit succeeded. On the Pi, `/health` and `/api/v1/readiness` returned healthy and ready, the frontend returned HTTP 200, and the daily backup timer was active. [Publication and deployment](https://github.com/corybeyer/beer-brewing-app/actions/runs/46065685715)
 
-The Pi's reviewed operations installation at commit `964ab346764d83fa385313db3c8807262e4047d0` covers the proposal-retention release. PR #23 adds a separate details-schema operations compatibility update; its exact reviewed commit still needs the documented administrator installation before merge. Keep PR #23 in draft until CI/review and that release gate are complete.
-
-## Remaining release checks
-
-- Confirm CI on the final PR #23 commit and complete review. The local pre-PR suite uses Node 24 and supports system Chromium through `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium`.
-- Keep the PR draft until a Pi administrator has installed and verified the details-specific operations update from that clean, reviewed commit. See the [recipe-details rollout instructions](../../infrastructure/deployment/production/ROLLOUT.md#upgrading-installed-operations-before-the-recipe-details-release).
+The November 14 local pre-PR checks passed with 8 validator fixtures, 193 Python tests, a frontend production build, and 87 browser/accessibility checks. Twelve PostgreSQL integration groups were skipped locally and covered in CI. The local Docker rollout was blocked by Docker socket permissions and covered in CI.
 
 ## Active repository
 
 | Area | Observed state |
 | --- | --- |
-| Runtime | UI/API serves built assets, liveness/readiness, OpenAPI, and the deployed draft/ingredient endpoints. Step editing merged in PR #22; recipe details are implemented in draft PR #23 and require schema `0005_recipe_details`. Root `app.py` remains the retained rollback service |
+| Runtime | UI/API serves built assets, liveness/readiness, OpenAPI, and draft endpoints. Step editing merged in PR #22. PR #23 merged recipe details under schema `0005_recipe_details`. Root `app.py` remains the retained rollback service |
 | Tests | Categorized unit/integration/contract/browser tests; repository validator regression fixtures cover placement, dependencies, visuals, metadata, secret exclusions, and source-bound pre-PR reports |
 | Backend organization | FastAPI composition in `apps/api` (`brewery_api`); separate `brewery_database` and `brewery_config` packages. Recipe graph/link/portion rules, draft coordination, exact extract conversion, and the new catalogue port remain in the pure domain; transport/persistence stay in adapters |
 | Frontend | React/TypeScript/Vite in `apps/web`: Home/Recipes/Settings, manual overview/ingredient/step editing, local source/tag/volume-target editor, and service readiness. Shared controls/examples in `packages/ui`, visual foundations in `packages/design-system`; catalogue matching and authoring remain unavailable |
-| Persistence | PostgreSQL 17 adapter/migrations in `packages/database`; role provisioning in `infrastructure/deployment/database`; credentials/configuration in `packages/config`. Root development `compose.yaml` separates administrator/migrator/runtime roles and file mounts. Production schema `0003_fermentable_catalogue` is verified. Migration `0004_conversion_proposals` was merged/deployed in PR #18; `0005_recipe_details` is the current development migration and is not deployed |
+| Persistence | PostgreSQL 17 adapter/migrations in `packages/database`; role provisioning in `infrastructure/deployment/database`; credentials/configuration in `packages/config`. Root development `compose.yaml` separates administrator/migrator/runtime roles and file mounts. PR #18 deployed `0004_conversion_proposals`. The current migration head on main is `0005_recipe_details` |
 | Contracts | Versioned contracts and typed readiness client in `packages/communications`; React state stays in the web app. Backend generates v1 OpenAPI. No sensor adapters are implemented |
-| Delivery | Production Dockerfile and publication/deployment workflow retained. PR #23 CI #52 passed all eight jobs, including rollout and verified restore. PostgreSQL and ARM64 coverage are in CI; local container execution and Pi deployment for schema `0005_recipe_details` remain unverified |
+| Delivery | Production Dockerfile and publication/deployment workflow retained. Main CI #54 passed the PostgreSQL, ARM64, and rollout/verified restore jobs for PR #23 |
 | Knowledge base | M0 documentation assembled, including source archive and screen annotations; four supplied wireframe image files are now available in `docs/images/` |
 | Development images | `docs/images/README.md` links the four supplied wireframes to UI-01–UI-04 and documents naming, source guidance, and the cooler/no-recirculation correction; UI-05 and UI-06 images remain absent |
 

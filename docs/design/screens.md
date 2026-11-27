@@ -31,6 +31,7 @@ Checks: refresh during a hold without resetting time; recover after service rest
 - Use Overview, Ingredients, and Steps navigation within a version. Show draft/publication state and source.
 - Include every step on mobile and desktop. Support editing order without breaking dependency references; provide a keyboard alternative to drag operations.
 - Define action type, instructions, vessel/equipment role, target, duration, dependency, timing anchor, offset, ingredient portion, and confirmation requirement as applicable.
+- Assign portions from saved ingredients using their saved units. Show the recipe total beside each ingredient choice, support splitting a total across steps, and keep portions attached through reordering.
 - Explain timing clearly: 45 minutes after confirmed start is 15 minutes remaining in a 60-minute boil. Recalculate/review the schedule explicitly if duration changes.
 - Allow incomplete draft work while blocking invalid publication or batch start with actionable errors. The mockup's Start batch button on a draft is not permission to bypass readiness validation.
 

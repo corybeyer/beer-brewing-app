@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import type { RecipeOverview, RecipeIngredient, RecipeStep, RecipeDetails } from '@brewery/communications/recipes';
+import type { RecipeOverview, RecipeIngredient, RecipeStep, RecipeDetails, StepAddition } from '@brewery/communications/recipes';
 
 const endpoint = '**/api/v1/recipe-drafts**';
 const failure = (code: string, message: string, issues: { path: string; code: string; message: string }[] = []) => ({ error: { code, message, issues } });
@@ -9,8 +9,16 @@ async function server(page: Page, loseFirstCreate = false, markFirstStepLinked =
   const drafts = new Map<string, RecipeOverview>();
   const ingredients = new Map<string, RecipeIngredient[]>();
   const steps = new Map<string, RecipeStep[]>();
+  const additions = new Map<string, StepAddition[]>();
   const details = new Map<string, RecipeDetails>();
   const keys: string[] = []; const revisions: number[] = [];
+  function stepList(draft: RecipeOverview) {
+    const id = draft.version_id;
+    const portions = additions.get(id) ?? [];
+    return { version_id: id, edit_revision: draft.edit_revision, steps: steps.get(id) ?? [],
+      additions: portions, ingredients: ingredients.get(id) ?? [],
+      linked_addition_step_ids: [...new Set(portions.map((portion) => portion.step_id))] };
+  }
   await page.route('**/api/v1/readiness', (route) => route.fulfill({ json: { status: 'ready' } }));
   await page.route(endpoint, async (route) => {
     const request = route.request(); const url = new URL(request.url());
@@ -36,9 +44,14 @@ async function server(page: Page, loseFirstCreate = false, markFirstStepLinked =
       }
       if (url.pathname.endsWith('/steps')) {
         steps.set(id, body.steps);
-        drafts.set(id, { ...draft, edit_revision: draft.edit_revision + 1 });
-        const linkedAdditionStepIds = markFirstStepLinked && body.steps.length ? [body.steps[0].id] : [];
-        return route.fulfill({ json: { version_id: id, edit_revision: draft.edit_revision + 1, steps: body.steps, linked_addition_step_ids: linkedAdditionStepIds } });
+        if (body.additions) additions.set(id, body.additions);
+        if (markFirstStepLinked && body.steps.length && !additions.has(id)) {
+          ingredients.set(id, [{ id: 'grain', name: 'Malt', category: 'grain', quantity: '4', unit: 'kg' }]);
+          additions.set(id, [{ step_id: body.steps[0].id, ingredient_id: 'grain', quantity: '4', unit: 'kg' }]);
+        }
+        const saved = { ...draft, edit_revision: draft.edit_revision + 1 };
+        drafts.set(id, saved);
+        return route.fulfill({ json: stepList(saved) });
       }
       if (url.pathname.endsWith('/details')) {
         const saved: RecipeDetails = { version_id: id, edit_revision: draft.edit_revision + 1,
@@ -57,8 +70,7 @@ async function server(page: Page, loseFirstCreate = false, markFirstStepLinked =
     }
     if (url.pathname.endsWith('/steps')) {
       const id = decodeURIComponent(url.pathname.split('/').at(-2)!);
-      const draft = drafts.get(id)!;
-      return route.fulfill({ json: { version_id: id, edit_revision: draft.edit_revision, steps: steps.get(id) ?? [], linked_addition_step_ids: [] } });
+      return route.fulfill({ json: stepList(drafts.get(id)!) });
     }
     if (url.pathname.endsWith('/details')) {
       const id = decodeURIComponent(url.pathname.split('/').at(-2)!);
@@ -72,7 +84,7 @@ async function server(page: Page, loseFirstCreate = false, markFirstStepLinked =
     return route.fulfill({ status: draft ? 200 : 404, json: draft ?? failure('not_found', 'This draft could not be found.') });
   });
   await page.route('**/api/v1/recipe-drafts/catalogue/grains', (route) => route.fulfill({ json: [] }));
-  return { drafts, ingredients, steps, keys, revisions };
+  return { drafts, ingredients, steps, additions, keys, revisions };
 }
 
 test('edit and reorder recipe steps while retaining dependency identity', async ({ page }) => {
@@ -95,6 +107,105 @@ test('edit and reorder recipe steps while retaining dependency identity', async 
   expect(saved[0].anchor_step_id).toBe(saved[1].id);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
+});
+
+test('split an ingredient across steps and keep the exact portions after reorder and reload', async ({ page }) => {
+  const api = await server(page);
+  await newDraft(page);
+  await page.getByRole('button', { name: 'Add ingredient', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Ingredient 1 name', exact: true }).fill('Cascade');
+  await page.getByRole('textbox', { name: 'Ingredient 1 quantity', exact: true }).fill('2');
+  await page.getByRole('combobox', { name: 'Ingredient 1 unit', exact: true }).selectOption('oz');
+  await page.getByRole('button', { name: 'Save ingredients', exact: true }).click();
+  await expect(page.getByText('Ingredients saved.', { exact: true })).toBeVisible();
+
+  const addStep = page.getByRole('button', { name: 'Add step', exact: true });
+  const amount = (step: number) => page.getByRole('textbox', { name: `Step ${step} portion 1 amount`, exact: true });
+  for (const [step, title, quantity] of [[1, 'Start of boil', '0.75'], [2, 'Late boil', '1.25']] as const) {
+    await addStep.click();
+    await page.getByRole('textbox', { name: `Step ${step} title`, exact: true }).fill(title);
+    await page.getByRole('button', { name: `Add portion to step ${step}`, exact: true }).click();
+    const select = page.getByRole('combobox', { name: `Step ${step} portion 1 ingredient`, exact: true });
+    await expect(select).toBeFocused();
+    await expect(select.getByRole('option', { name: '1. Cascade · 2 oz total' })).toHaveCount(1);
+    await amount(step).fill(quantity);
+  }
+  await page.getByRole('button', { name: 'Move step 2 up', exact: true }).click();
+  await expect(amount(1)).toHaveValue('1.25');
+  await page.route('**/steps', (route) => {
+    if (route.request().method() === 'PATCH' && route.request().postDataJSON().additions?.[1]?.quantity === '1.5') {
+      return route.fulfill({ status: 422, json: failure('validation_error', 'Recipe draft validation failed.', [
+        { path: 'ingredients[0].quantity', code: 'overallocated', message: 'Scheduled portions exceed the ingredient quantity.' },
+      ]) });
+    }
+    return route.fallback();
+  });
+  await amount(1).fill('1.5');
+  await page.getByRole('button', { name: 'Save steps', exact: true }).click();
+  await expect(amount(1)).toHaveAttribute('aria-invalid', 'true');
+  await expect(amount(1)).toHaveValue('1.5');
+  await amount(1).fill('1.25');
+  await page.getByRole('button', { name: 'Save steps', exact: true }).click();
+  await expect(page.getByText('Steps saved.', { exact: true })).toBeVisible();
+  const draft = [...api.drafts.values()][0];
+  expect(api.additions.get(draft.version_id)?.map((portion) => portion.quantity)).toEqual(['0.75', '1.25']);
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Open untitled draft', exact: true }).click();
+  await expect(amount(1)).toHaveValue('1.25');
+  await expect(amount(2)).toHaveValue('0.75');
+  await expect(page.getByRole('button', { name: 'Remove step 1', exact: true })).toBeDisabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
+  await page.getByRole('button', { name: 'Remove step 1 portion 1', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Add portion to step 1', exact: true })).toBeFocused();
+  await page.getByRole('button', { name: 'Remove step 1', exact: true }).click();
+  await page.getByRole('button', { name: 'Save steps', exact: true }).click();
+  await expect(page.getByText('Steps saved.', { exact: true })).toBeVisible();
+  expect(api.additions.get(draft.version_id)?.map((portion) => portion.quantity)).toEqual(['0.75']);
+});
+
+test('step conflict review keeps remote changes to the section left unedited locally', async ({ page }) => {
+  const api = await server(page);
+  const id = 'draft-portion-conflict';
+  const draft: RecipeOverview = { recipe_id: 'portion-conflict', version_id: id, version_number: 1,
+    name: 'Portion conflict', description: null, edit_revision: 1, status: 'draft' };
+  const original = { step_id: 'boil', ingredient_id: 'cascade', quantity: '1', unit: 'oz' };
+  api.drafts.set(id, draft);
+  api.steps.set(id, [{ id: 'boil', title: 'Boil', instructions: null, dependencies: [], anchor_step_id: null }]);
+  api.ingredients.set(id, [{ id: 'cascade', name: 'Cascade', category: 'hops', quantity: '2', unit: 'oz' }]);
+  api.additions.set(id, [original]);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Open Portion conflict', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Step 1 title', exact: true }).fill('Rolling boil');
+  api.drafts.set(id, { ...draft, edit_revision: 2 });
+  api.additions.set(id, [{ ...original, quantity: '1.5' }]);
+  const save = page.getByRole('button', { name: 'Save steps', exact: true });
+  const amount = page.getByRole('textbox', { name: 'Step 1 portion 1 amount', exact: true });
+  const review = page.getByRole('button', { name: 'Review saved steps', exact: true });
+  await save.click();
+  await review.click();
+  await expect(page.getByRole('region', { name: 'Latest saved steps' })).toContainText('Cascade · 1.5 oz');
+  await page.getByRole('button', { name: 'Keep my step changes', exact: true }).click();
+  await expect(amount).toHaveValue('1.5');
+  await save.click();
+  await expect(page.getByText('Steps saved.', { exact: true })).toBeVisible();
+  expect(api.steps.get(id)?.[0].title).toBe('Rolling boil');
+  expect(api.additions.get(id)?.[0].quantity).toBe('1.5');
+
+  await amount.fill('1.25');
+  api.drafts.set(id, { ...draft, edit_revision: 4 });
+  api.steps.set(id, [{ ...api.steps.get(id)![0], title: 'Start of boil' }]);
+  await save.click();
+  await review.click();
+  await expect(page.getByRole('region', { name: 'Latest saved steps' })).toContainText('Start of boil');
+  await page.getByRole('button', { name: 'Keep my portion changes', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Step 1 title', exact: true })).toHaveValue('Start of boil');
+  await expect(amount).toHaveValue('1.25');
+  await save.click();
+  await expect(page.getByText('Steps saved.', { exact: true })).toBeVisible();
+  expect(api.steps.get(id)?.[0].title).toBe('Start of boil');
+  expect(api.additions.get(id)?.[0].quantity).toBe('1.25');
 });
 
 async function newDraft(page: Page) {

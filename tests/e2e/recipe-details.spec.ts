@@ -54,7 +54,8 @@ async function server(page: Page, conflictOnce = false) {
     }
     if (url.pathname.endsWith('/steps')) {
       const versionId = decodeURIComponent(url.pathname.split('/').at(-2)!);
-      return route.fulfill({ json: { version_id: versionId, edit_revision: drafts.get(versionId)?.edit_revision ?? 1, steps: [], linked_addition_step_ids: [] } });
+      return route.fulfill({ json: { version_id: versionId, edit_revision: drafts.get(versionId)?.edit_revision ?? 1,
+        steps: [], linked_addition_step_ids: [], ingredients: [], additions: [] } });
     }
     if (url.pathname.endsWith('/conversion-proposals')) return route.fulfill({ json: [] });
     const versionId = decodeURIComponent(url.pathname.split('/').at(-1)!);

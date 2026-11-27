@@ -8,8 +8,8 @@ M2/UI-02/UI-04/UI-05 under [proposed ADR-0011](../../../../../docs/architecture/
 | POST `/api/v1/recipe-drafts` | `create-draft.schema.json`: creation_id is UUID v4. First request creates an empty numbered version and returns 201 overview; repeated key returns 200 current overview without overwriting it. Simultaneous retries create one draft. |
 | GET `/api/v1/recipe-drafts/{version_id}` | `overview.schema.json`; 404 if absent. Version IDs are path segments of 1–128 characters; HTTP-created IDs are UUID strings. |
 | PATCH `/api/v1/recipe-drafts/{version_id}/overview` | `update-overview.schema.json`: expected_revision, name, and description are all required. Explicit null clears an optional field. Only these two text fields change; complete ingredient/step data stays intact. Returns the saved overview with edit_revision incremented once. |
-| GET `/api/v1/recipe-drafts/{version_id}/steps` | `steps.schema.json`: coherent version ID, edit revision, and ordered steps. |
-| PATCH `/api/v1/recipe-drafts/{version_id}/steps` | `update-steps.schema.json`: expected_revision and complete replacement step list. |
+| GET `/api/v1/recipe-drafts/{version_id}/steps` | `steps.schema.json`: version ID, shared edit revision, ordered steps and additions, and saved ingredients from one snapshot. |
+| PATCH `/api/v1/recipe-drafts/{version_id}/steps` | `update-steps.schema.json`: expected_revision, complete step list, and optional complete additions list. |
 | GET `/api/v1/recipe-drafts/{version_id}/details` | `recipe-details.schema.json`: source, ordered tags, volume targets, and shared edit revision. |
 | PATCH `/api/v1/recipe-drafts/{version_id}/details` | `update-recipe-details.schema.json`: expected_revision and complete replacement of the optional recipe details. |
 
@@ -51,9 +51,13 @@ The edit revision is shared by overview, ingredient, step, details, and conversi
 
 ## Manual step editing
 
-GET `/api/v1/recipe-drafts/{version_id}/steps` reads the complete ordered list and the IDs of steps that own ingredient additions; PATCH at the same path replaces the step list with an expected_revision. The shared revision covers overview, ingredients, and steps, so stale writes return 409.
+GET `/api/v1/recipe-drafts/{version_id}/steps` reads the complete ordered step and portion lists, along with saved ingredients and the distinct IDs of steps that own additions. PATCH at the same path replaces the step list using the shared edit revision. Stale writes return 409.
 
-Each step has a stable ID, nullable title/instructions, dependency IDs, and a nullable timing anchor. Writes accept at most 100 steps; titles are limited to 200 characters, instructions to 2,000, and each dependency list to 100 IDs. The step request cap is 2 MiB. The selected path owns version identity. The complete proposed step list is validated against itself and the unchanged ingredient/addition records; missing references, cycles, and removal of a step used by an addition fail without saving. The UI disables removal while a step has dependent links or ingredient additions. Reordering changes display positions only, so step IDs and links stay stable. The browser offers keyboard move-up/move-down controls, editable links, retained values on errors, and explicit conflict review. Duration, offset, action type, vessel role, targets, confirmation rules, publication, and batch timers remain future work.
+Each step has a stable ID, nullable title/instructions, dependency IDs, and a nullable timing anchor. Writes accept at most 100 steps, with titles up to 200 characters, instructions up to 2,000, and at most 100 dependency IDs per step. The request cap is 2 MiB. Reordering changes display positions and keeps stable step links.
+
+An omitted or null `additions` field preserves saved portions. An array replaces the full ordered collection in the same transaction as the steps. Supply an empty array to clear it. Replacement accepts up to 500 rows. Each row supplies a step ID, ingredient ID, nullable quantity, and nullable unit. Both IDs must exist in the selected draft, including newly submitted steps. A new or edited amount is a positive decimal string with up to 12 integer digits and 12 decimal places. Save the ingredient total and its unit before assigning a portion amount. Blank amounts represent pending portions. An unchanged stored amount can retain its original precision and unit, including a missing unit.
+
+The API validates the complete proposed plan. Missing references, cycles, incompatible units, and scheduled quantities over the ingredient total fail without a partial save. The editor shows each ingredient's total and unit, keeps portions attached through reordering, and requires removal of linked portions and dependent links before deleting a step. On conflict, the editor shows the latest steps and portions and retains the latest saved values for either collection left unedited locally.
 
 ## Recipe source, tags, and volume targets
 
