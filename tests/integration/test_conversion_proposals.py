@@ -209,7 +209,9 @@ class ConversionProposalStorageTests(PostgreSQLTestCase):
             try:
                 self.assertTrue(held.wait(5))
                 downgrading = workers.submit(command.downgrade, self.config, '0003_fermentable_catalogue')
-                self.wait_blocked('LOCK TABLE conversion_proposal%')
+                # The details migration locks recipe_version before the proposal table.
+                # Observe that first lock while the append still holds its shared version lock.
+                self.wait_blocked('LOCK TABLE recipe_version%')
             finally:
                 release.set()
             self.assertEqual(appending.result(5), value)

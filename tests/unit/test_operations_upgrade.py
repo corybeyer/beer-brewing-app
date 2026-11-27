@@ -141,3 +141,13 @@ class OperationsUpgradeTests(unittest.TestCase):
             self.update()
         self.assertEqual(self.preserved(), before)
         self.assertEqual((self.runtime / 'operations-history' / f'rollout-{digest}.py').read_text(), original)
+
+    def test_known_proposal_operations_predecessor_preserves_installed_state(self):
+        original = '# fixture for the reviewed proposal-schema deployer\n'
+        (self.runtime / 'rollout.py').write_text(original)
+        digest = hashlib.sha256(original.encode()).hexdigest()
+        before = self.preserved()
+        with patch.object(upgrade, 'DETAILS_PREDECESSOR_SHA256', digest):
+            self.update()
+        self.assertEqual(self.preserved(), before)
+        self.assertEqual((self.runtime / 'operations-history' / f'rollout-{digest}.py').read_text(), original)
