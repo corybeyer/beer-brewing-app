@@ -1,9 +1,11 @@
 """Draft storage contract; no HTTP, database, or publication dependencies."""
+from collections import Counter
 from dataclasses import dataclass, replace
+from decimal import Decimal
 from typing import Protocol
 from uuid import NAMESPACE_URL, UUID, uuid5
 
-from .recipe_plan import Ingredient, PlanIssue, RecipePlan, Step, validate_plan
+from .recipe_plan import Addition, Ingredient, PlanIssue, RecipePlan, Step, validate_plan
 from .recipe_details import RecipeDetails
 
 
@@ -132,9 +134,38 @@ class RecipeDraftService:
         return stored
 
     def update_steps(self, version_id: str, expected_revision: int,
-                     steps: tuple[Step, ...]) -> StoredDraft:
+                     steps: tuple[Step, ...], additions: tuple[Addition, ...] | None = None) -> StoredDraft:
         current = self.load_steps(version_id)
-        plan = replace(current.draft.plan, steps=steps)
+        if current.edit_revision != expected_revision:
+            raise DraftConflict('The recipe draft edit revision is stale.')
+        original = current.draft.plan
+        if additions is not None:
+            existing = Counter((item, item.quantity.as_tuple().exponent)
+                               for item in original.additions if item.quantity is not None)
+            ingredients = {item.id: item for item in original.ingredients}
+            issues = []
+            for index, addition in enumerate(additions):
+                amount = addition.quantity
+                if not isinstance(amount, Decimal) or not amount.is_finite():
+                    continue
+                scale = amount.as_tuple().exponent
+                stored_value = (addition, scale)
+                if existing[stored_value]:
+                    existing[stored_value] -= 1
+                    continue
+                path = f'additions[{index}].quantity'
+                if amount.adjusted() >= 12 or scale < -12:
+                    issues.append(PlanIssue('invalid_quantity', path,
+                        'Use up to 12 integer digits and 12 decimal places for a portion amount.'))
+                    continue
+                ingredient = ingredients.get(addition.ingredient_id)
+                if ingredient is not None and (
+                        addition.unit is None or ingredient.unit is None or ingredient.quantity is None):
+                    issues.append(PlanIssue('missing_ingredient_amount', path,
+                        'Save the ingredient total and unit before assigning a portion amount.'))
+            if issues:
+                raise InvalidDraft(tuple(issues))
+        plan = replace(original, steps=steps, additions=original.additions if additions is None else additions)
         return self.store.save(replace(current.draft, plan=plan), expected_revision)
 
 

@@ -23,9 +23,8 @@ from brewery_domain.conversion_proposals import (
 )
 from brewery_domain.extract_conversion import FermentableYield
 from brewery_domain.fermentable_catalogue import CatalogUnavailable
-from brewery_domain.recipe_plan import Ingredient, PlanIssue
 from brewery_domain.recipe_details import RecipeDetails, VolumeTarget, normalize_details
-from brewery_domain.recipe_plan import Ingredient, PlanIssue, Step
+from brewery_domain.recipe_plan import Addition, Ingredient, PlanIssue, Step
 from brewery_domain.recipes import (DraftConflict, DraftNotFound, InvalidDraft, RecipeDetailsService,
                                     RecipeDraftService, RecipeOverview, RecipeStorageUnavailable)
 
@@ -150,9 +149,25 @@ class StepV1(StrictModel):
     anchor_step_id: Annotated[StrictStr, Field(min_length=1, max_length=128)] | None
 
 
+class StepAdditionV1(StrictModel):
+    step_id: Annotated[StrictStr, Field(min_length=1, max_length=128)]
+    ingredient_id: Annotated[StrictStr, Field(min_length=1, max_length=128)]
+    # Accept exact stored numerics on replacement. The service caps precision for new changes.
+    quantity: Annotated[StrictStr, Field(max_length=147456, pattern=r'^(0|[1-9][0-9]*)(\.[0-9]+)?$')] | None
+    unit: Literal['g', 'kg', 'oz', 'lb', 'mL', 'L', 'US_fl_oz', 'US_gal', 'count', 'packet'] | None
+
+
+class StoredStepAdditionV1(StrictModel):
+    step_id: str
+    ingredient_id: str
+    quantity: str | None
+    unit: str | None
+
+
 class UpdateStepsV1(StrictModel):
     expected_revision: Annotated[StrictInt, Field(ge=1, le=9007199254740991)]
     steps: Annotated[list[StepV1], Field(max_length=100)]
+    additions: Annotated[list[StepAdditionV1], Field(max_length=500)] | None = None
 
 
 class StepsV1(StrictModel):
@@ -160,6 +175,8 @@ class StepsV1(StrictModel):
     edit_revision: Annotated[int, Field(ge=1, le=9007199254740991)]
     steps: list[StepV1]
     linked_addition_step_ids: list[str]
+    ingredients: list[StoredIngredientV1]
+    additions: list[StoredStepAdditionV1]
 
 
 class VolumeTargetV1(StrictModel):
@@ -332,11 +349,17 @@ def install_recipe_routes(application):
             source_retrieved_at=profile.source_retrieved_at.isoformat())
 
     def step_result(stored):
-        return StepsV1(version_id=stored.draft.plan.version_id, edit_revision=stored.edit_revision,
+        ingredients = ingredient_result(stored)
+        additions = stored.draft.plan.additions
+        return StepsV1(version_id=ingredients.version_id, edit_revision=stored.edit_revision,
             steps=[StepV1(id=item.id, title=item.title, instructions=item.instructions,
                 dependencies=list(item.dependencies), anchor_step_id=item.anchor_step_id)
                 for item in stored.draft.plan.steps],
-            linked_addition_step_ids=sorted({item.step_id for item in stored.draft.plan.additions}))
+            linked_addition_step_ids=sorted({item.step_id for item in additions}),
+            ingredients=ingredients.ingredients,
+            additions=[StoredStepAdditionV1(step_id=item.step_id, ingredient_id=item.ingredient_id,
+                quantity=format(item.quantity, 'f') if item.quantity is not None else None, unit=item.unit)
+                for item in additions])
 
     def details_result(version_id, revision, details):
         return RecipeDetailsV1(version_id=version_id, edit_revision=revision, source=details.source,
@@ -438,7 +461,11 @@ def install_recipe_routes(application):
     def update_steps(version_id: Annotated[str, Path(min_length=1, max_length=128)], payload: UpdateStepsV1, request: Request):
         steps = tuple(Step(item.id, version_id, tuple(item.dependencies), item.anchor_step_id,
                            item.title, item.instructions) for item in payload.steps)
-        return step_result(service(request).update_steps(version_id, payload.expected_revision, steps))
+        additions = None if payload.additions is None else tuple(
+            Addition(version_id, item.step_id, item.ingredient_id,
+                     Decimal(item.quantity) if item.quantity is not None else None, item.unit)
+            for item in payload.additions)
+        return step_result(service(request).update_steps(version_id, payload.expected_revision, steps, additions))
 
     @router.get('/{version_id}/details', response_model=RecipeDetailsV1)
     def load_details(version_id: Annotated[str, Path(min_length=1, max_length=128)], request: Request):
