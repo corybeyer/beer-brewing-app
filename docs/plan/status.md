@@ -2,7 +2,11 @@
 
 As of November 27, 2026 (America/Chicago). This is a development snapshot, not a live production health report.
 
-## Current work: M2 ingredient portions on recipe steps
+## Current work: M2 recipe name search
+
+The Recipes library searches the complete draft collection by literal, case-insensitive name substring. Search resets pagination and leaves the open editor intact. The step portion editor merged in PR #24 at `8ebc77a`.
+
+## M2 ingredient portions on recipe steps
 
 The step editor now assigns saved ingredients and exact portion amounts to steps, including splitting an ingredient across steps, reordering linked steps, and removing portions. The step API saves portions and step edits together under the shared draft revision. It uses the existing recipe addition table and exact allocation rules. See the [portion rules](../requirements/recipe-plan-validation.md#ingredient-portions-on-steps) and [v1 contract](../../packages/communications/contracts/recipes/v1/README.md#manual-step-editing) for M2/UI-02/UI-04 and AC-01/AC-02.
 

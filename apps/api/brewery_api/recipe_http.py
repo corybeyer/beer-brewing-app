@@ -368,8 +368,9 @@ def install_recipe_routes(application):
 
     @router.get('', response_model=DraftPageV1)
     def list_drafts(request: Request, limit: Annotated[int, Query(ge=1, le=100)] = 50,
-                    offset: Annotated[int, Query(ge=0, le=100000)] = 0):
-        items = service(request).store.list_drafts(limit + 1, offset)
+                    offset: Annotated[int, Query(ge=0, le=100000)] = 0,
+                    q: Annotated[str, Query(max_length=200, pattern=r'^[^\x00]*$')] = ''):
+        items = service(request).store.list_drafts(limit + 1, offset, q.strip())
         return DraftPageV1(items=[result(item) for item in items[:limit]],
                            next_offset=offset + limit if len(items) > limit and offset + limit <= 100000 else None)
 

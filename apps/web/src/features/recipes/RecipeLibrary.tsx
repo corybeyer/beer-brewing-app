@@ -31,6 +31,8 @@ export function RecipeLibrary({ active = true }: { active?: boolean }) {
   const [nextOffset, setNextOffset] = useState<number | null>(null);
   const [listState, setListState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [listError, setListError] = useState('');
+  const [searchText, setSearchText] = useState('');
+  const activeSearch = useRef('');
   const [selected, setSelected] = useState<RecipeOverview | null>(null);
   const [name, setName] = useState(''); const [description, setDescription] = useState('');
   const [busy, setBusy] = useState<'create' | 'open' | 'save' | 'review' | null>(null);
@@ -60,7 +62,7 @@ export function RecipeLibrary({ active = true }: { active?: boolean }) {
     listController.current?.abort(); const controller = new AbortController(); listController.current = controller;
     setListState('loading'); setListError('');
     try {
-      const page = await listDrafts(controller.signal, offset);
+      const page = await listDrafts(controller.signal, offset, activeSearch.current);
       if (!controller.signal.aborted) {
         setItems((old) => offset === 0 ? page.items : [...old, ...page.items.filter((item) => !old.some((existing) => existing.version_id === item.version_id))]);
         setNextOffset(page.next_offset); setListState('ready');
@@ -108,7 +110,7 @@ export function RecipeLibrary({ active = true }: { active?: boolean }) {
       void run('create', (signal) => createDraft(key, signal), (draft) => {
         listController.current?.abort(); setListState('ready'); setListError('');
         creationId.current = null; rememberKey(null);
-        setItems((old) => [draft, ...old.filter((item) => item.version_id !== draft.version_id)]);
+        if (!activeSearch.current) setItems((old) => [draft, ...old.filter((item) => item.version_id !== draft.version_id)]);
         show(draft); setNotice('New draft created. Add a name and description when you are ready.');
         // A retried creation may already be in the loaded page. Reload pagination
         // from the server instead of assuming every response inserted another row.
@@ -125,6 +127,7 @@ export function RecipeLibrary({ active = true }: { active?: boolean }) {
     void run('save', (signal) => saveOverview(selected, name, description, signal), (draft) => {
       listController.current?.abort(); setListState('ready'); setListError('');
       show(draft); setItems((old) => old.map((item) => item.version_id === draft.version_id ? draft : item)); setNotice('Draft overview saved.');
+      if (activeSearch.current) void refresh();
     });
   }
   function acceptLatest(keepValues: boolean) {
@@ -156,16 +159,23 @@ export function RecipeLibrary({ active = true }: { active?: boolean }) {
 
     <div className="library-layout">
       <Card clip aria-label="Saved recipe drafts">
-        <div className="form-toolbar">
-          <SearchField label="Search recipes" placeholder="Search recipes…" disabled aria-describedby="recipe-availability" />
+        <form className="form-toolbar" onSubmit={(event) => {
+          event.preventDefault();
+          activeSearch.current = searchText.trim();
+          setItems([]); setNextOffset(null);
+          void refresh();
+        }}>
+          <SearchField label="Search recipes" placeholder="Search by name…" maxLength={200}
+            value={searchText} onChange={(event) => setSearchText(event.target.value)} />
+          <Button type="submit" variant="secondary">Search</Button>
           <SelectField label="Filter by style" disabled aria-describedby="recipe-availability"><option>All styles</option></SelectField>
-        </div>
+        </form>
         <div className="recipe-list" aria-busy={listState === 'loading'}>
           {listState === 'loading' && <p aria-live="polite">Loading recipe drafts…</p>}
           {listError && <div role="alert"><p>{listError}</p>{items.length > 0 && <p>Showing the last loaded draft list.</p>}
             <Button variant="secondary" onClick={() => void refresh()}>Retry loading drafts</Button></div>}
-          {listState === 'ready' && items.length === 0 && <EmptyState badge="Room for something good"
-            title="Every good batch starts with a recipe." description="Create a draft and start with a name and your notes." />}
+          {listState === 'ready' && items.length === 0 && (activeSearch.current ? <p role="status">No recipe names match “{activeSearch.current}”.</p> : <EmptyState badge="Room for something good"
+            title="Every good batch starts with a recipe." description="Create a draft and start with a name and your notes." />)}
           {items.map((draft) => <Card className="content-card" key={draft.version_id}>
             <Badge>Draft · Version {draft.version_number}</Badge><h2>{draft.name ?? 'Untitled draft'}</h2>
             <Button variant="secondary" disabled={planBusy || conversionBusy || busy !== null} aria-label={`Open ${draft.name ?? 'untitled draft'}`}

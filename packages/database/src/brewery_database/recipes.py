@@ -137,12 +137,14 @@ class PostgresRecipeDraftStore:
             return _stored(connection, row) if row is not None else None
 
     @_storage_errors
-    def list_drafts(self, limit: int, offset: int) -> tuple[RecipeOverview, ...]:
+    def list_drafts(self, limit: int, offset: int, name_query: str = '') -> tuple[RecipeOverview, ...]:
         if type(limit) is not int or not 1 <= limit <= 101 or type(offset) is not int or not 0 <= offset <= 100000:
             raise ValueError('Draft pagination is outside its supported bounds.')
+        statement = sa.select(_version).where(_version.c.status == 'draft')
+        if name_query:
+            statement = statement.where(_version.c.name.icontains(name_query, autoescape=True))
         with self.engine.connect() as connection:
-            rows = connection.execute(sa.select(_version).where(_version.c.status == 'draft')
-                                      .order_by(_version.c.created_at.desc(), _version.c.id)
+            rows = connection.execute(statement.order_by(_version.c.created_at.desc(), _version.c.id)
                                       .limit(limit).offset(offset)).mappings()
             return tuple(RecipeOverview(row['recipe_id'], row['id'], row['version_number'],
                                         row['name'], row['description'], row['edit_revision']) for row in rows)
