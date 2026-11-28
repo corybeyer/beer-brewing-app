@@ -34,6 +34,25 @@ class RecipeHTTPTestCase(PostgreSQLTestCase):
 
 
 class RecipeHTTPTests(RecipeHTTPTestCase):
+    def test_name_search_filters_before_paging_and_treats_wildcards_as_text(self):
+        for name in ('Dark % Lager', 'Dark _ Lager', 'Pale Ale', None):
+            draft = self.create().json()
+            if name is not None:
+                response = self.client.patch(f"{PATH}/{draft['version_id']}/overview",
+                    json={'expected_revision': 1, 'name': name, 'description': 'Dark'})
+                self.assertEqual(response.status_code, 200, response.text)
+        query = {'q': '  DARK  ', 'limit': 1}
+        first = self.client.get(PATH, params=query).json()
+        self.assertEqual(first['next_offset'], 1)
+        second = self.client.get(PATH, params={**query, 'offset': 1}).json()
+        self.assertEqual({first['items'][0]['name'], second['items'][0]['name']}, {'Dark % Lager', 'Dark _ Lager'})
+        self.assertIsNone(second['next_offset'])
+        for wildcard in ('%', '_'):
+            self.assertEqual([item['name'] for item in self.client.get(PATH, params={'q': wildcard}).json()['items']],
+                             [f'Dark {wildcard} Lager'])
+        self.assertEqual(self.client.get(PATH, params={'q': '\x00'}).status_code, 422)
+        self.assertEqual(self.client.get(PATH, params={'q': 'x' * 201}).status_code, 422)
+
     def test_grain_conversion_preview_and_explicit_apply(self):
         catalogue = PostgresFermentableCatalog(self.engine)
         self.assertEqual(self.client.get(f'{PATH}/catalogue/grains').json(), [])

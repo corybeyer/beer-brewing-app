@@ -62,7 +62,12 @@ async function server(page: Page, loseFirstCreate = false, markFirstStepLinked =
       const saved = { ...draft, name: body.name, description: body.description, edit_revision: draft.edit_revision + 1 };
       drafts.set(id, saved); return route.fulfill({ json: saved });
     }
-    if (url.pathname === '/api/v1/recipe-drafts') return route.fulfill({ json: { items: [...drafts.values()].reverse(), next_offset: null } });
+    if (url.pathname === '/api/v1/recipe-drafts') {
+      const query = url.searchParams.get('q')?.toLowerCase();
+      const offset = Number(url.searchParams.get('offset') ?? 0);
+      const results = [...drafts.values()].reverse().filter((draft) => !query || draft.name?.toLowerCase().includes(query));
+      return route.fulfill({ json: { items: results.slice(offset, offset + 50), next_offset: results.length > offset + 50 ? offset + 50 : null } });
+    }
     if (url.pathname.endsWith('/ingredients')) {
       const id = decodeURIComponent(url.pathname.split('/').at(-2)!);
       const draft = drafts.get(id)!;
@@ -206,6 +211,29 @@ test('step conflict review keeps remote changes to the section left unedited loc
   await expect(page.getByText('Steps saved.', { exact: true })).toBeVisible();
   expect(api.steps.get(id)?.[0].title).toBe('Start of boil');
   expect(api.additions.get(id)?.[0].quantity).toBe('1.25');
+});
+
+test('recipe name search finds a draft beyond the first page and restores the library when cleared', async ({ page }) => {
+  const api = await server(page);
+  for (let index = 0; index < 51; index += 1) {
+    const id = `search-draft-${index}`;
+    api.drafts.set(id, { recipe_id: id, version_id: id, version_number: 1, status: 'draft',
+      name: index === 0 ? 'Garage Stout' : `Pale Ale ${index}`, description: null, edit_revision: 1 });
+  }
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Load more drafts' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open Garage Stout' })).toHaveCount(0);
+  const search = page.getByRole('searchbox', { name: 'Search recipes' });
+  await search.fill('sTOUT');
+  await search.press('Enter');
+  await expect(page.getByRole('button', { name: 'Open Garage Stout' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Load more drafts' })).toHaveCount(0);
+  await search.fill('missing');
+  await search.press('Enter');
+  await expect(page.getByText('No recipe names match “missing”.')).toBeVisible();
+  await search.fill('');
+  await search.press('Enter');
+  await expect(page.getByRole('button', { name: 'Load more drafts' })).toBeVisible();
 });
 
 async function newDraft(page: Page) {

@@ -52,7 +52,7 @@ Checks: multiple tastings retain chronology; invalid ratings are rejected; creat
 
 ## UI-04: Recipe library and ingredient entry
 
-- Search by recipe name and filter by style; show version, readiness, volume, and source. Search and style filtering remain unavailable in the current implementation.
+- Search across all draft names before pagination. Style filtering remains planned. Show version, readiness, volume, and source.
 - Provide manual recipe creation and ingredient groups for grain, hops, yeast, and other additions, including quantity, unit, specifications, and intended use.
 - Link scheduled portions to brewing steps rather than duplicating ingredient amounts in free text.
 - Preserve personal, book, and website attribution separately from style. Imported text/file/URL workflows produce reviewable drafts with missing fields visible.

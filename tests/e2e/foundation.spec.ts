@@ -33,7 +33,7 @@ test('recipe library is honest, responsive, and accessible', async ({ page }, te
   await expect(page.getByRole('heading', { name: 'Recipe library', exact: true })).toBeVisible();
   await expect(page.getByRole('status')).toContainText('Brewing service ready');
   await expect(page.getByRole('button', { name: 'New recipe', exact: true })).toBeEnabled();
-  await expect(page.getByRole('searchbox', { name: 'Search recipes' })).toBeDisabled();
+  await expect(page.getByRole('searchbox', { name: 'Search recipes' })).toBeEnabled();
   await expect(page.getByRole('combobox', { name: 'Filter by style' })).toBeDisabled();
   await expect(page.getByText('Create a draft and start with a name and your notes.', { exact: false })).toBeVisible();
   await expect(page.getByRole('navigation').getByRole('link', { name: 'Recipes' })).toHaveAttribute('aria-current', 'page');

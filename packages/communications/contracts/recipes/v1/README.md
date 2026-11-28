@@ -4,7 +4,7 @@ M2/UI-02/UI-04/UI-05 under [proposed ADR-0011](../../../../../docs/architecture/
 
 | Method and path | Request / response |
 | --- | --- |
-| GET `/api/v1/recipe-drafts?limit=50&offset=0` | `draft-page.schema.json`: items plus nullable next_offset. Limit 1–100; offset 0–100000. Newest creation first, ID tie-break. Offset paging can shift during concurrent inserts; refresh after changes and deduplicate IDs while appending. |
+| GET `/api/v1/recipe-drafts?limit=50&offset=0` | `draft-page.schema.json`: items plus nullable next_offset. Limit 1–100; offset 0–100000. Optional `q` is a case-insensitive literal name substring, up to 200 characters, trimmed before filtering and pagination. A blank query lists all drafts. Newest creation first, ID tie-break. Offset paging can shift during concurrent inserts; refresh after changes and deduplicate IDs while appending. |
 | POST `/api/v1/recipe-drafts` | `create-draft.schema.json`: creation_id is UUID v4. First request creates an empty numbered version and returns 201 overview; repeated key returns 200 current overview without overwriting it. Simultaneous retries create one draft. |
 | GET `/api/v1/recipe-drafts/{version_id}` | `overview.schema.json`; 404 if absent. Version IDs are path segments of 1–128 characters; HTTP-created IDs are UUID strings. |
 | PATCH `/api/v1/recipe-drafts/{version_id}/overview` | `update-overview.schema.json`: expected_revision, name, and description are all required. Explicit null clears an optional field. Only these two text fields change; complete ingredient/step data stays intact. Returns the saved overview with edit_revision incremented once. |

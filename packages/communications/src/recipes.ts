@@ -44,8 +44,10 @@ async function request(path: string, signal: AbortSignal, method = 'GET', payloa
   }
 }
 
-export async function listDrafts(signal: AbortSignal, offset = 0): Promise<DraftPage> {
-  const value = await request(`${endpoint}?limit=50&offset=${offset}`, signal);
+export async function listDrafts(signal: AbortSignal, offset = 0, nameQuery = ''): Promise<DraftPage> {
+  const parameters = new URLSearchParams({ limit: '50', offset: String(offset) });
+  if (nameQuery) parameters.set('q', nameQuery);
+  const value = await request(`${endpoint}?${parameters}`, signal);
   if (!object(value) || !Array.isArray(value.items) || value.items.length > 50 ||
       !(value.next_offset === null || Number.isSafeInteger(value.next_offset) && Number(value.next_offset) > offset && Number(value.next_offset) <= 100000)) {
     throw new RecipeRequestError('invalid_response', 'The recipe list could not be read. Please retry.');
